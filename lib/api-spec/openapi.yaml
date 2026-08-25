@@ -3,20 +3,20 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: API da plataforma de pedidos e orçamentos Fitas Gitex
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
-    description: Health operations
+  - name: auth
+  - name: dashboard
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +24,74 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /v1/auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Autentica um usuário
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Usuário autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "401":
+          description: Credenciais inválidas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Encerra a sessão atual
+      responses:
+        "204":
+          description: Sessão encerrada
+  /v1/auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Retorna o usuário autenticado
+      responses:
+        "200":
+          description: Usuário atual
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Retorna o resumo do dashboard
+      responses:
+        "200":
+          description: Resumo do dashboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -31,6 +99,47 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
-
+      required: [status]
+    LoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+          minLength: 8
+      required: [email, password]
+    UserRole:
+      type: string
+      enum: [ADMIN, REPRESENTATIVE]
+    AuthUser:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        role:
+          $ref: "#/components/schemas/UserRole"
+        representative_id: { type: ["string", "null"] }
+      required: [id, email, role, representative_id]
+    AuthSession:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/AuthUser"
+      required: [user]
+    CurrentUser:
+      $ref: "#/components/schemas/AuthUser"
+    DashboardSummary:
+      type: object
+      properties:
+        draft_count: { type: number }
+        submitted_count: { type: number }
+        approved_count: { type: number }
+        invoiced_count: { type: number }
+        rejected_count: { type: number }
+      required: [draft_count, submitted_count, approved_count, invoiced_count, rejected_count]
+    ErrorResponse:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]

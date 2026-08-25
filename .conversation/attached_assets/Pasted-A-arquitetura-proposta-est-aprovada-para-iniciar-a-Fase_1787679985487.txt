@@ -1,0 +1,241 @@
+A arquitetura proposta está aprovada para iniciar a Fase 1, com os seguintes ajustes obrigatórios antes da implementação.
+
+## 1. Autenticação
+
+Evite implementar um sistema de autenticação e sessão artesanal se existir uma biblioteca estável e compatível com Next.js/App Router/PostgreSQL que resolva corretamente:
+
+* hash de senha;
+* sessão;
+* cookies HttpOnly;
+* expiração;
+* logout;
+* rotação/invalidação;
+* proteção contra ataques comuns.
+
+Antes de escolher a solução, explique brevemente qual biblioteca utilizará e por quê.
+
+Não utilizar serviços externos de autenticação nesta primeira versão sem necessidade.
+
+---
+
+## 2. Origem do preço
+
+Separar claramente:
+
+`suggested_price_origin`
+
+Valores:
+
+* CUSTOMER
+* REPRESENTATIVE
+* STANDARD
+
+e:
+
+`effective_price_origin`
+
+Valores:
+
+* CUSTOMER
+* REPRESENTATIVE
+* STANDARD
+* SPECIAL
+
+Exemplo:
+
+O sistema encontrou preço da tabela do cliente:
+
+`suggested_price_origin = CUSTOMER`
+
+O representante posteriormente utilizou preço especial:
+
+`effective_price_origin = SPECIAL`
+
+Preservar ambos.
+
+---
+
+## 3. Preço do item
+
+No `order_items`, armazenar explicitamente:
+
+* suggested_unit_price
+* suggested_price_origin
+* effective_unit_price
+* effective_price_origin
+* is_special_price
+* special_unit_price
+* net_unit_price
+
+Evitar depender de reconstrução posterior para saber qual preço foi efetivamente utilizado.
+
+---
+
+## 4. Sincronização com ERP
+
+Avaliar não tratar `SYNCED` como status comercial.
+
+Preferencialmente separar:
+
+`internal_status`
+
+* DRAFT
+* SUBMITTED
+
+de:
+
+* erp_synced_at
+* erp_order_number
+* erp_status
+
+A sincronização é um fato técnico e o status ERP é uma situação comercial.
+
+Se considerar que `SYNCED` ainda traz benefício, explique antes de implementá-lo.
+
+---
+
+## 5. Campos de sincronização
+
+Adicionar quando aplicável aos cadastros sincronizados:
+
+* erp_updated_at ou source_updated_at
+* last_synced_at
+
+Especialmente em:
+
+* representatives
+* customers
+* products
+* payment_terms
+* carriers
+* price_tables
+
+Esses campos deverão ajudar futuramente em sincronizações incrementais e diagnóstico.
+
+---
+
+## 6. Logs de integração
+
+`integration_logs` deve ser genérico e servir para qualquer entidade.
+
+Utilizar pelo menos:
+
+* id
+* direction
+* endpoint
+* method
+* entity
+* entity_id
+* external_id
+* correlation_id
+* status
+* error_message
+* created_at
+
+Não criar dependência obrigatória exclusivamente com `orders`.
+
+Nunca armazenar credenciais ou tokens.
+
+---
+
+## 7. Produtos
+
+Manter os campos ERP exatamente como texto:
+
+* group_code VARCHAR(2)
+* type_code VARCHAR(2)
+* product_code VARCHAR(4)
+* reference_code VARCHAR(8)
+
+Preservar zeros à esquerda.
+
+Criar índice composto:
+
+(group_code, type_code, product_code, reference_code)
+
+Não criar UNIQUE ainda.
+
+Não concatenar permanentemente esses quatro campos para substituir os campos originais.
+
+---
+
+## 8. Integridade do pedido
+
+Ao criar um item, salvar snapshots dos dados necessários para auditoria e integração ERP.
+
+No mínimo:
+
+* product_id
+* group_code
+* type_code
+* product_code
+* reference_code
+* código comercial
+* descrição
+* embalagem
+* largura
+* cor
+
+A alteração futura do cadastro de produto não poderá modificar o histórico do item já gravado.
+
+---
+
+## 9. Cálculos financeiros
+
+Todos os cálculos críticos devem ocorrer no servidor.
+
+Frontend pode apresentar prévia, mas o backend deverá recalcular antes de persistir.
+
+Manter inicialmente:
+
+* preço unitário NUMERIC(18,6)
+* percentual NUMERIC(7,4)
+* total NUMERIC(20,6)
+
+Centralizar arredondamento.
+
+Nunca usar `number` de JavaScript diretamente para aritmética financeira crítica sem estratégia decimal apropriada.
+
+---
+
+## 10. Escopo da Fase 1
+
+Agora pode iniciar a implementação da Fase 1.
+
+Implementar somente:
+
+1. estrutura do projeto;
+2. PostgreSQL;
+3. Drizzle ORM;
+4. migrations;
+5. enums e schemas iniciais;
+6. autenticação;
+7. autorização básica ADMIN / REPRESENTATIVE;
+8. login;
+9. logout;
+10. dashboard protegido;
+11. estrutura vazia dos services;
+12. documentação;
+13. testes básicos de autenticação/autorização.
+
+Não implementar ainda:
+
+* cadastro completo de produtos;
+* tela de clientes;
+* tabela de preços;
+* pedido;
+* itens;
+* integração ERP funcional.
+
+Ao terminar a Fase 1, pare e apresente:
+
+* arquivos criados;
+* migrations criadas;
+* modelo de autenticação;
+* como criar o primeiro usuário ADMIN;
+* como executar os testes;
+* como iniciar o projeto;
+* decisões técnicas tomadas;
+* pendências para a Fase 2.
+
+Não avance automaticamente para a Fase 2.

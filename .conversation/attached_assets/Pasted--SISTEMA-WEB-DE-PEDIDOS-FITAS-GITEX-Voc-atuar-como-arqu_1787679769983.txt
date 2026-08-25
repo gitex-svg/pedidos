@@ -1,0 +1,1194 @@
+# SISTEMA WEB DE PEDIDOS — FITAS GITEX
+
+Você atuará como **arquiteto de software sênior, desenvolvedor full-stack e especialista em sistemas comerciais/ERP**.
+
+Quero desenvolver uma aplicação web empresarial para digitação de pedidos/orçamentos por representantes comerciais.
+
+O projeto será desenvolvido no **Replit** utilizando o Replit Agent.
+
+IMPORTANTE:
+
+Não tente construir todo o sistema de uma única vez.
+
+Primeiro analise os requisitos, crie a arquitetura, banco de dados e estrutura básica. Depois desenvolva cada módulo de maneira incremental.
+
+Sempre priorize:
+
+* simplicidade;
+* segurança;
+* manutenibilidade;
+* desempenho;
+* responsividade;
+* código organizado;
+* regras de negócio centralizadas;
+* facilidade de integração com ERP.
+
+---
+
+# 1. OBJETIVO
+
+Criar um sistema web responsivo para representantes comerciais da Fitas Gitex digitarem pedidos/orçamentos.
+
+O sistema deverá funcionar perfeitamente em:
+
+* celular;
+* tablet;
+* notebook;
+* desktop.
+
+Utilizar abordagem **mobile-first**.
+
+Não criar aplicações diferentes para desktop e celular.
+
+Preparar a arquitetura para futuramente funcionar como PWA.
+
+---
+
+# 2. TECNOLOGIAS
+
+Utilizar preferencialmente:
+
+* TypeScript;
+* React;
+* Next.js, se adequado ao ambiente atual do Replit;
+* Tailwind CSS;
+* componentes modernos e acessíveis;
+* PostgreSQL;
+* Zod para validações;
+* autenticação segura;
+* API REST versionada.
+
+Utilizar versões estáveis e atuais.
+
+O banco de dados deverá ser relacional.
+
+Todos os valores monetários devem utilizar DECIMAL/NUMERIC no banco.
+
+Nunca utilizar floating point de maneira ingênua para cálculos financeiros.
+
+---
+
+# 3. ARQUITETURA
+
+Separar claramente:
+
+1. Interface
+2. Regras de negócio
+3. Acesso ao banco
+4. Autenticação/autorização
+5. Integração com ERP
+6. Serviços
+
+Não colocar regras comerciais diretamente dentro dos componentes React.
+
+Criar serviços específicos como:
+
+* PricingService
+* DiscountService
+* OrderService
+* ProductService
+* CustomerService
+* ERPIntegrationService
+
+Toda regra crítica deve existir em apenas um local.
+
+---
+
+# 4. PERFIS DE USUÁRIO
+
+Inicialmente existirão:
+
+## ADMIN
+
+Pode visualizar e administrar todos os dados.
+
+## REPRESENTANTE
+
+Cada representante possuirá login e senha.
+
+Depois de autenticado, deverá ser identificado automaticamente.
+
+O representante somente poderá visualizar:
+
+* seus próprios clientes;
+* seus próprios pedidos/orçamentos.
+
+Um representante nunca poderá visualizar clientes ou pedidos pertencentes a outro representante.
+
+Essa segurança deve existir também no backend, e não apenas na interface.
+
+---
+
+# 5. REPRESENTANTES
+
+Os representantes serão sincronizados pelo ERP através de API.
+
+Criar tabela `representatives`.
+
+Campos iniciais:
+
+* id UUID
+* erp_code
+* name
+* email
+* user_id
+* active
+* created_at
+* updated_at
+
+Nunca utilizar o código ERP como chave primária interna.
+
+---
+
+# 6. CLIENTES
+
+Os clientes serão sincronizados pelo ERP através de API.
+
+Criar tabela `customers`.
+
+Campos iniciais:
+
+* id UUID
+* erp_code
+* cnpj_cpf
+* corporate_name
+* trade_name
+* representative_id
+* city
+* state
+* active
+* created_at
+* updated_at
+
+Cada cliente deverá estar relacionado ao seu representante.
+
+O representante deverá conseguir pesquisar clientes por:
+
+* código;
+* CNPJ/CPF;
+* razão social;
+* nome fantasia.
+
+---
+
+# 7. PRODUTOS
+
+Os produtos serão sincronizados pelo ERP através de API.
+
+Criar tabela `products`.
+
+Campos iniciais:
+
+* id UUID
+* erp_id
+* code
+* description
+* collection
+* packaging
+* width
+* color
+* active
+* created_at
+* updated_at
+
+Além desses campos, existem QUATRO CAMPOS OBRIGATÓRIOS provenientes do ERP:
+
+### GRUPO
+
+Nome técnico sugerido:
+
+`group_code`
+
+Formato:
+
+ASCII / texto com exatamente até 2 caracteres.
+
+Exemplo:
+
+`01`
+
+Nunca converter automaticamente para número, pois zeros à esquerda devem ser preservados.
+
+---
+
+### TIPO
+
+Nome técnico sugerido:
+
+`type_code`
+
+Formato:
+
+ASCII / texto com exatamente até 2 caracteres.
+
+Exemplo:
+
+`02`
+
+Nunca converter automaticamente para número.
+
+---
+
+### PRODUTO
+
+Nome técnico sugerido:
+
+`product_code`
+
+Formato:
+
+ASCII / texto com exatamente até 4 caracteres.
+
+Exemplo:
+
+`0025`
+
+Nunca remover zeros à esquerda.
+
+---
+
+### REFERÊNCIA
+
+Nome técnico sugerido:
+
+`reference_code`
+
+Formato:
+
+ASCII / texto com exatamente até 8 caracteres.
+
+Exemplo:
+
+`00001234`
+
+Nunca converter automaticamente para número.
+
+---
+
+Esses quatro campos são importantes para integração com o ERP.
+
+Eles serão utilizados para:
+
+* identificar produtos;
+* pesquisar produtos;
+* incluir produtos no orçamento/pedido;
+* enviar posteriormente o item para o ERP.
+
+Considerar a combinação:
+
+`GRUPO + TIPO + PRODUTO + REFERÊNCIA`
+
+como uma identificação comercial/ERP importante do produto.
+
+Criar índice adequado no PostgreSQL para melhorar pesquisas utilizando esses campos.
+
+Avaliar também criar uma constraint UNIQUE composta, caso seja tecnicamente adequado:
+
+`group_code + type_code + product_code + reference_code`
+
+Não criar a constraint sem antes verificar se essa combinação realmente pode ser considerada única.
+
+---
+
+# 8. PESQUISA DE PRODUTOS
+
+A pesquisa de produtos será uma funcionalidade muito utilizada durante a digitação do orçamento.
+
+Ela deve ser rápida.
+
+O usuário deverá conseguir pesquisar utilizando:
+
+* Grupo;
+* Tipo;
+* Produto;
+* Referência;
+* código;
+* descrição;
+* artigo;
+* embalagem;
+* largura;
+* cor.
+
+A pesquisa deverá aceitar pesquisas parciais quando apropriado.
+
+Exemplo:
+
+Grupo:
+
+`01`
+
+Tipo:
+
+`05`
+
+Produto:
+
+`0025`
+
+Referência:
+
+`00001234`
+
+Também permitir busca textual.
+
+O backend deverá ser responsável pela consulta.
+
+Não carregar obrigatoriamente todo o cadastro de produtos no navegador para depois filtrá-lo.
+
+Utilizar índices adequados no banco.
+
+---
+
+# 9. CONDIÇÕES DE PAGAMENTO
+
+As condições de pagamento serão sincronizadas pelo ERP através de API.
+
+Criar tabela:
+
+`payment_terms`
+
+Campos:
+
+* id UUID
+* erp_code
+* description
+* active
+* created_at
+* updated_at
+
+---
+
+# 10. TABELAS DE PREÇO
+
+Existirão três níveis de preços:
+
+1. PREÇO POR CLIENTE
+2. PREÇO POR REPRESENTANTE
+3. PREÇO PADRÃO
+
+Criar uma estrutura normalizada para armazenar essas informações.
+
+Não duplicar cadastro de produto.
+
+---
+
+# 11. REGRA DE PREÇO
+
+Criar um serviço central chamado:
+
+`PricingService`
+
+Quando determinado produto for incluído em um orçamento:
+
+### PASSO 1
+
+Pesquisar se existe preço específico para:
+
+CLIENTE + PRODUTO.
+
+Se existir:
+
+usar preço do cliente.
+
+Origem:
+
+`CUSTOMER`
+
+### PASSO 2
+
+Caso não exista preço do cliente, pesquisar:
+
+REPRESENTANTE + PRODUTO.
+
+Se existir:
+
+usar preço do representante.
+
+Origem:
+
+`REPRESENTATIVE`
+
+### PASSO 3
+
+Caso também não exista:
+
+utilizar preço padrão.
+
+Origem:
+
+`STANDARD`
+
+Portanto:
+
+CLIENTE
+↓
+REPRESENTANTE
+↓
+PADRÃO
+
+Essa ordem é obrigatória.
+
+---
+
+# 12. PREÇO ESPECIAL
+
+O representante poderá informar um preço especial para determinado item quando permitido pelas regras do sistema.
+
+Quando houver preço especial:
+
+* armazenar o preço originalmente sugerido;
+* armazenar a origem do preço sugerido;
+* armazenar o preço especial;
+* marcar `is_special_price = true`;
+* utilizar `SPECIAL` como origem efetiva do preço.
+
+Itens com preço especial NÃO recebem os descontos da capa do pedido.
+
+O sistema deverá manter histórico suficiente para auditoria.
+
+---
+
+# 13. DESCONTOS
+
+A capa do orçamento terá quatro descontos:
+
+* Desconto 1
+* Desconto 2
+* Desconto 3
+* Desconto 4
+
+Todos serão percentuais.
+
+Os descontos devem ser aplicados EM CASCATA.
+
+Exemplo:
+
+Preço:
+
+R$ 100,00
+
+Descontos:
+
+10%
+5%
+3%
+2%
+
+Cálculo correto:
+
+100 × 0,90 × 0,95 × 0,97 × 0,98
+
+NÃO calcular:
+
+100 - 20%
+
+Criar:
+
+`DiscountService`
+
+para centralizar essa regra.
+
+---
+
+# 14. DESCONTOS NOS ITENS
+
+Os descontos informados na capa deverão ser replicados em cada item.
+
+Cada item deverá armazenar:
+
+* discount1
+* discount2
+* discount3
+* discount4
+
+Isso é importante porque precisamos preservar as condições comerciais existentes quando o pedido foi criado.
+
+Não depender das configurações atuais para reconstruir um pedido antigo.
+
+Se o item possuir preço especial:
+
+NÃO aplicar os quatro descontos ao cálculo daquele item.
+
+Mesmo assim, preservar de maneira auditável quais descontos estavam informados na capa do pedido.
+
+Criar uma flag como:
+
+`discounts_applied`
+
+para indicar se os descontos foram efetivamente aplicados naquele item.
+
+---
+
+# 15. ORÇAMENTOS / PEDIDOS
+
+O representante criará inicialmente um orçamento.
+
+Criar tabela:
+
+`orders`
+
+Campos iniciais:
+
+* id UUID
+* internal_number
+* representative_id
+* customer_id
+* payment_term_id
+* carrier_id, se aplicável
+* notes
+* discount1
+* discount2
+* discount3
+* discount4
+* gross_total
+* net_total
+* internal_status
+* erp_status
+* erp_order_number
+* created_at
+* updated_at
+* submitted_at
+* synced_at
+
+---
+
+# 16. ITENS DO ORÇAMENTO
+
+Criar tabela:
+
+`order_items`
+
+Cada item deverá possuir pelo menos:
+
+* id UUID
+* order_id
+* product_id
+
+Também armazenar uma cópia dos identificadores ERP utilizados no momento da inclusão:
+
+* group_code
+* type_code
+* product_code
+* reference_code
+
+Isso é importante para preservar o histórico e facilitar integração com o ERP.
+
+Também armazenar:
+
+* quantity
+* suggested_unit_price
+* suggested_price_origin
+* is_special_price
+* special_unit_price
+* discount1
+* discount2
+* discount3
+* discount4
+* discounts_applied
+* net_unit_price
+* gross_total
+* net_total
+* created_at
+* updated_at
+
+IMPORTANTE:
+
+O histórico do item não poderá mudar caso posteriormente:
+
+* o produto seja alterado;
+* a tabela de preço seja alterada;
+* o representante mude;
+* os descontos mudem;
+* códigos ERP sejam alterados.
+
+Os dados comerciais efetivamente utilizados no momento do pedido deverão permanecer armazenados.
+
+---
+
+# 17. FLUXO DO ORÇAMENTO
+
+O fluxo principal deverá ser:
+
+LOGIN
+
+↓
+
+DASHBOARD
+
+↓
+
+NOVO ORÇAMENTO
+
+↓
+
+SELECIONAR CLIENTE
+
+↓
+
+INFORMAR:
+
+* condição de pagamento;
+* transportadora;
+* observação;
+* desconto 1;
+* desconto 2;
+* desconto 3;
+* desconto 4.
+
+↓
+
+ADICIONAR PRODUTOS
+
+↓
+
+PESQUISAR PRODUTO
+
+↓
+
+CALCULAR PREÇO AUTOMATICAMENTE
+
+↓
+
+INFORMAR QUANTIDADE
+
+↓
+
+ADICIONAR ITEM
+
+↓
+
+REPETIR PARA OUTROS PRODUTOS
+
+↓
+
+REVISAR ORÇAMENTO
+
+↓
+
+FINALIZAR
+
+↓
+
+DISPONIBILIZAR PARA ERP
+
+---
+
+# 18. INTERFACE DE INCLUSÃO DE PRODUTOS
+
+Essa tela é uma das partes mais importantes do sistema.
+
+No celular, deve ser simples e rápida.
+
+O representante deverá conseguir pesquisar pelo menos por:
+
+* Grupo
+* Tipo
+* Produto
+* Referência
+* descrição
+
+Depois de selecionar o produto, apresentar:
+
+* código;
+* descrição;
+* embalagem;
+* largura;
+* cor;
+* preço sugerido;
+* origem do preço.
+
+Exemplo:
+
+Produto:
+Fita Cetim Gitex
+
+Grupo: 01
+Tipo: 02
+Produto: 0025
+Referência: 00001234
+
+Preço sugerido:
+R$ 3,25
+
+Origem:
+Tabela do cliente
+
+Quantidade:
+[_______]
+
+Preço especial:
+[_______]
+
+[ ADICIONAR ITEM ]
+
+Se informar preço especial, deixar visualmente claro:
+
+"Preço especial — descontos não serão aplicados neste item."
+
+---
+
+# 19. STATUS INTERNO
+
+Separar o status interno do status ERP.
+
+Status internos iniciais:
+
+`DRAFT`
+
+Pedido/orçamento sendo digitado.
+
+`SUBMITTED`
+
+Representante finalizou e disponibilizou para integração.
+
+`SYNCED`
+
+ERP confirmou que importou.
+
+---
+
+# 20. STATUS DO ERP
+
+O ERP atualizará o status comercial.
+
+Status possíveis inicialmente:
+
+* EM_ANALISE
+* APROVADO
+* FECHADO
+* FATURADO
+* REPROVADO
+
+Mostrar textos amigáveis na interface:
+
+Em análise
+Aprovado
+Fechado
+Faturado
+Reprovado
+
+---
+
+# 21. HISTÓRICO DE STATUS
+
+Criar:
+
+`order_status_history`
+
+Campos:
+
+* id
+* order_id
+* previous_status
+* new_status
+* source
+* created_at
+
+Possíveis origens:
+
+* SYSTEM
+* REPRESENTATIVE
+* ERP
+* ADMIN
+
+Nunca simplesmente sobrescrever informações importantes sem histórico.
+
+---
+
+# 22. INTEGRAÇÃO COM ERP
+
+A integração será feita através de API REST.
+
+Criar endpoints versionados:
+
+`/api/v1/erp/...`
+
+O ERP enviará para o sistema:
+
+* representantes;
+* clientes;
+* produtos;
+* condições de pagamento;
+* tabelas de preço;
+* outras informações futuramente.
+
+O ERP consultará pedidos finalizados.
+
+O ERP deverá conseguir:
+
+1. consultar pedidos SUBMITTED;
+2. consultar capa;
+3. consultar itens;
+4. obter Grupo;
+5. obter Tipo;
+6. obter Produto;
+7. obter Referência;
+8. obter quantidade;
+9. obter preço;
+10. obter descontos;
+11. confirmar importação;
+12. informar número do pedido no ERP;
+13. atualizar status.
+
+---
+
+# 23. SEGURANÇA DA API ERP
+
+A API do ERP deverá utilizar autenticação server-to-server.
+
+Nunca expor credenciais no navegador.
+
+Nunca armazenar tokens diretamente no código-fonte.
+
+Utilizar variáveis de ambiente / Secrets do Replit.
+
+Planejar:
+
+* API Key segura ou autenticação equivalente;
+* rate limiting;
+* logs;
+* validação Zod;
+* tratamento de erros.
+
+---
+
+# 24. IDEMPOTÊNCIA
+
+A integração precisa suportar chamadas repetidas.
+
+Se o ERP enviar duas vezes o mesmo produto, cliente ou atualização:
+
+NÃO criar duplicidades.
+
+Utilizar identificadores externos apropriados.
+
+Implementar operações de UPSERT quando tecnicamente apropriado.
+
+A importação de um pedido pelo ERP também deverá possuir mecanismo para evitar importação duplicada.
+
+---
+
+# 25. LOG DE INTEGRAÇÃO
+
+Criar tabela:
+
+`integration_logs`
+
+Campos sugeridos:
+
+* id
+* direction
+* endpoint
+* method
+* entity
+* entity_id
+* external_id
+* status
+* error_message
+* created_at
+
+Nunca gravar:
+
+* senha;
+* API Key;
+* token;
+* segredo.
+
+---
+
+# 26. PRECISÃO FINANCEIRA
+
+Utilizar PostgreSQL NUMERIC/DECIMAL.
+
+Definir uma política central de:
+
+* precisão;
+* quantidade de casas decimais;
+* arredondamento.
+
+Preços de fitas podem possuir mais casas decimais que moeda convencional.
+
+Portanto, não assumir automaticamente apenas duas casas decimais para preço unitário.
+
+Totais monetários podem ser apresentados com duas casas, mas cálculos internos deverão preservar precisão suficiente.
+
+Antes da implementação, proponha a precisão adequada para:
+
+* preço unitário;
+* quantidade;
+* percentual;
+* total.
+
+---
+
+# 27. BANCO DE DADOS
+
+Antes de criar o banco definitivamente:
+
+Apresente o modelo proposto.
+
+Espero pelo menos as seguintes entidades:
+
+* users/auth
+* representatives
+* customers
+* products
+* payment_terms
+* carriers
+* price_tables
+* price_table_items
+* orders
+* order_items
+* order_status_history
+* integration_logs
+
+Caso considere melhor outra modelagem para as tabelas de preço, explique antes.
+
+---
+
+# 28. ÍNDICES
+
+Planejar índices para consultas frequentes.
+
+Especialmente:
+
+Produtos:
+
+* group_code
+* type_code
+* product_code
+* reference_code
+
+Clientes:
+
+* representative_id
+* erp_code
+* cnpj_cpf
+* corporate_name
+
+Pedidos:
+
+* representative_id
+* customer_id
+* internal_status
+* erp_status
+* created_at
+
+Tabelas de preço:
+
+* product_id
+* customer_id
+* representative_id
+
+Não criar índices desnecessários.
+
+---
+
+# 29. TESTES OBRIGATÓRIOS
+
+Criar testes automatizados para as regras críticas.
+
+Testar:
+
+### PREÇO
+
+1. Cliente possui preço → utilizar cliente.
+2. Cliente não possui, representante possui → utilizar representante.
+3. Nenhum dos dois possui → utilizar padrão.
+
+### DESCONTOS
+
+4. Aplicar D1 → D2 → D3 → D4 em cascata.
+5. Não somar percentuais.
+6. Descontos zerados não alteram preço.
+
+### PREÇO ESPECIAL
+
+7. Item com preço especial não recebe descontos.
+8. Item normal recebe descontos.
+
+### SEGURANÇA
+
+9. Representante A não visualiza clientes do representante B.
+10. Representante A não visualiza pedidos do representante B.
+
+### ERP
+
+11. Sincronização repetida não duplica produto.
+12. Sincronização repetida não duplica cliente.
+13. Confirmação repetida de pedido não causa inconsistência.
+
+### PRODUTO
+
+14. Preservar zeros à esquerda em Grupo.
+15. Preservar zeros à esquerda em Tipo.
+16. Preservar zeros à esquerda em Produto.
+17. Preservar zeros à esquerda em Referência.
+
+---
+
+# 30. DESIGN
+
+Criar interface profissional, limpa e moderna.
+
+Não utilizar aparência genérica de projeto demonstrativo de IA.
+
+O sistema será utilizado diariamente por representantes comerciais.
+
+Priorizar:
+
+* velocidade;
+* legibilidade;
+* poucos cliques;
+* campos grandes no celular;
+* feedback visual;
+* busca rápida;
+* tabelas responsivas;
+* carregamento rápido.
+
+Preparar estrutura visual para aplicação da identidade da Fitas Gitex posteriormente.
+
+---
+
+# 31. DASHBOARD
+
+Depois de autenticado, o representante deverá visualizar inicialmente:
+
+* Novo Pedido/Orçamento
+* Meus Pedidos
+* Clientes
+
+E indicadores simples:
+
+* Em digitação
+* Em análise
+* Aprovados
+* Faturados
+* Reprovados
+
+Não criar gráficos complexos nesta primeira versão.
+
+---
+
+# 32. REGRAS DE DESENVOLVIMENTO PARA O REPLIT AGENT
+
+Durante todo o desenvolvimento:
+
+NÃO:
+
+* reescrever módulos funcionando sem necessidade;
+* duplicar regras de negócio;
+* alterar banco sem migration;
+* remover campos existentes silenciosamente;
+* colocar credenciais no código;
+* ignorar erros TypeScript;
+* utilizar `any` desnecessariamente;
+* alterar regras comerciais sem avisar;
+* desabilitar segurança apenas para fazer algo funcionar;
+* confiar em cálculos financeiros enviados pelo navegador;
+* criar dados fictícios em produção;
+* misturar regras ERP com componentes React.
+
+SEMPRE:
+
+* analisar impacto antes de grandes alterações;
+* manter migrations;
+* manter testes;
+* documentar regras;
+* manter código organizado;
+* validar dados no servidor;
+* tratar erros;
+* preservar compatibilidade da API sempre que possível.
+
+---
+
+# 33. DOCUMENTAÇÃO
+
+Criar e manter:
+
+`README.md`
+
+`docs/ARCHITECTURE.md`
+
+`docs/DATABASE.md`
+
+`docs/BUSINESS_RULES.md`
+
+`docs/ERP_API.md`
+
+`docs/CHANGELOG.md`
+
+BUSINESS_RULES.md deverá documentar claramente:
+
+* hierarquia de preços;
+* descontos em cascata;
+* preço especial;
+* permissões;
+* status;
+* identificação ERP dos produtos.
+
+ERP_API.md deverá documentar todos os endpoints destinados ao ERP.
+
+---
+
+# 34. PRIMEIRA ETAPA — NÃO CONSTRUIR O SISTEMA TODO
+
+Nesta primeira execução, NÃO implemente todas as funcionalidades.
+
+Execute somente:
+
+1. Analise todos os requisitos deste prompt.
+2. Identifique riscos, dúvidas e decisões técnicas importantes.
+3. Proponha a arquitetura definitiva.
+4. Proponha o modelo completo do banco.
+5. Mostre relacionamentos entre as tabelas.
+6. Defina os tipos NUMERIC/DECIMAL.
+7. Defina como será feita autenticação.
+8. Defina como será protegida a API ERP.
+9. Defina a estratégia de migrations.
+10. Defina a estratégia de testes.
+11. Crie a estrutura inicial do projeto.
+12. Crie o banco/migrations iniciais.
+13. Crie os models/types.
+14. Crie os services vazios ou interfaces necessárias.
+15. Configure autenticação.
+16. Crie somente a tela de Login.
+17. Crie somente um Dashboard inicial protegido.
+18. Crie a documentação inicial.
+
+Não desenvolva ainda a tela completa de digitação de pedidos.
+
+---
+
+# 35. ANTES DE COMEÇAR A PROGRAMAR
+
+Primeiro apresente um resumo contendo:
+
+## Arquitetura escolhida
+
+Explique frontend, backend, banco e autenticação.
+
+## Modelo de banco
+
+Liste tabelas e relacionamentos.
+
+## Decisões importantes
+
+Explique principalmente:
+
+* identificação dos produtos;
+* Grupo/Tipo/Produto/Referência;
+* hierarquia das tabelas de preço;
+* preço especial;
+* descontos em cascata;
+* isolamento dos representantes;
+* integração ERP;
+* precisão financeira.
+
+## Plano de implementação
+
+Divida o projeto em fases.
+
+Somente depois dessa análise inicie a implementação da PRIMEIRA ETAPA.
+
+Não avance automaticamente para as demais fases.
