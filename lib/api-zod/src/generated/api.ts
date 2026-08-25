@@ -67,3 +67,11 @@ export const GetDashboardSummaryResponse = zod.object({
 })
 
 
+/**
+ * @summary Confirma acesso administrativo autenticado
+ */
+export const AdminHealthCheckResponse = zod.object({
+  "status": zod.string()
+})
+
+

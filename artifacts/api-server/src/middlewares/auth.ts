@@ -1,19 +1,21 @@
 import type { NextFunction, Request, Response } from "express";
-import { getUserFromToken, SESSION_COOKIE } from "../auth/session";
+import { auth } from "../auth/better-auth";
+import type { User } from "@workspace/db";
 import { hasRole, type AppRole } from "../auth/policy";
+import { toWebHeaders } from "../auth/http";
 
 declare global {
   namespace Express {
     interface Request {
-      authUser?: Awaited<ReturnType<typeof getUserFromToken>>;
+      authUser?: User;
     }
   }
 }
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const token = req.cookies?.[SESSION_COOKIE] as string | undefined;
-  const user = await getUserFromToken(token);
-  if (!user) return res.status(401).json({ error: "Não autenticado." });
+  const session = await auth.api.getSession({ headers: toWebHeaders(req) });
+  const user = session?.user as User | undefined;
+  if (!user?.active) return res.status(401).json({ error: "Não autenticado." });
   req.authUser = user;
   return next();
 }
@@ -26,4 +28,31 @@ export function requireRole(...roles: AppRole[]) {
     }
     return next();
   };
+}
+
+export function requireTrustedOrigin(req: Request, res: Response, next: NextFunction) {
+  const origin = req.get("origin");
+  if (!origin) return next();
+
+  let parsed: URL;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return res.status(403).json({ error: "Origem da requisição não permitida." });
+  }
+
+  const exactOrigins = [
+    process.env.BETTER_AUTH_URL ? new URL(process.env.BETTER_AUTH_URL).origin : null,
+    process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null,
+  ].filter(Boolean);
+  const isExact = exactOrigins.includes(parsed.origin);
+  const isLocalDevelopment =
+    process.env.NODE_ENV !== "production" &&
+    parsed.protocol === "http:" &&
+    (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
+
+  if (!isExact && !isLocalDevelopment) {
+    return res.status(403).json({ error: "Origem da requisição não permitida." });
+  }
+  return next();
 }

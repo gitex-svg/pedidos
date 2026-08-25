@@ -10,7 +10,7 @@
   },
   "devDependencies": {
     "@workspace/db": "workspace:*",
-    "better-auth": "^1.4.9",
+    "better-auth": "1.7.1",
     "drizzle-orm": "catalog:",
     "@types/node": "catalog:",
     "tsx": "catalog:"

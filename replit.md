@@ -33,7 +33,7 @@ Sistema web responsivo para representantes comerciais digitarem e acompanharem p
 ## Architecture decisions
 
 - Sincronização ERP é fato técnico, separado de status comercial.
-- Sessões são opacas e somente o hash do token é persistido.
+- Autenticação e sessões são gerenciadas pelo Better Auth com adaptador Drizzle/PostgreSQL.
 - Identidade e escopo do representante sempre são derivados da sessão no backend.
 - Regras financeiras serão centralizadas em services e usarão decimais.
 

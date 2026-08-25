@@ -1,0 +1,234 @@
+Antes de iniciar a Fase 2, faça uma etapa denominada:
+
+**FASE 1.1 — Hardening da Fundação**
+
+Não implemente ainda clientes, produtos, preços ou pedidos.
+
+## 1. Autenticação
+
+Atualmente o Better Auth está sendo utilizado apenas para hash e verificação de senha, enquanto criação, armazenamento, expiração e invalidação das sessões foram implementados manualmente.
+
+Quero reduzir código de segurança desenvolvido internamente.
+
+Analise a implementação atual e proponha a melhor opção entre:
+
+1. migrar completamente autenticação e gerenciamento de sessões para Better Auth;
+2. manter a autenticação atual somente se houver uma justificativa técnica forte.
+
+Dê preferência ao Better Auth completo se ele for compatível com a arquitetura atual React/Vite + Express + PostgreSQL + Drizzle.
+
+Antes da alteração, explique resumidamente:
+
+* o que será substituído;
+* quais tabelas serão afetadas;
+* impacto sobre `users`;
+* impacto sobre `sessions`;
+* impacto sobre cookies;
+* impacto sobre `requireAuth`;
+* impacto sobre `requireRole`;
+* impacto sobre os testes existentes.
+
+Depois implemente a solução escolhida.
+
+Não quebre os contratos existentes desnecessariamente:
+
+* POST `/api/v1/auth/login`
+* GET `/api/v1/auth/me`
+* POST `/api/v1/auth/logout`
+
+Se precisar alterá-los, explique antes.
+
+---
+
+## 2. Teste de usuário inativo
+
+Criar teste automatizado específico comprovando que:
+
+`active = false`
+
+impede autenticação.
+
+O teste deverá validar que um usuário inativo:
+
+* não consegue fazer login;
+* não recebe sessão válida;
+* não consegue acessar endpoints protegidos.
+
+---
+
+## 3. Rota ADMIN real
+
+Criar uma rota administrativa simples para validar a autorização real.
+
+Sugestão:
+
+GET `/api/v1/admin/health`
+
+Ela deverá exigir:
+
+`requireAuth`
+
+e:
+
+`requireRole("ADMIN")`
+
+Resultado esperado:
+
+ADMIN → HTTP 200
+
+REPRESENTATIVE → HTTP 403
+
+Sem autenticação → HTTP 401
+
+Não colocar nenhuma informação sensível nessa rota.
+
+Criar testes HTTP reais para os três cenários.
+
+---
+
+## 4. Representante vinculado à sessão
+
+Prepare a autenticação para que futuramente possamos determinar automaticamente qual representante está associado ao usuário.
+
+Quando o usuário autenticado possuir role:
+
+`REPRESENTATIVE`
+
+o backend deverá conseguir resolver:
+
+`user.id → representatives.user_id → representative.id`
+
+Criar um helper/service centralizado para isso.
+
+Sugestão conceitual:
+
+`getAuthenticatedRepresentative()`
+
+ou nomenclatura equivalente adequada à arquitetura atual.
+
+IMPORTANTE:
+
+No futuro, endpoints comerciais nunca deverão receber e confiar livremente em:
+
+`representative_id`
+
+enviado pelo frontend.
+
+O representante deverá ser determinado pela sessão autenticada.
+
+Ainda NÃO criar clientes ou pedidos nesta etapa.
+
+---
+
+## 5. Testes
+
+Ao terminar, executar:
+
+* typecheck;
+* testes automatizados;
+* testes HTTP;
+* build, se aplicável.
+
+Todos devem passar.
+
+Adicionar testes para:
+
+1. login correto;
+2. senha incorreta;
+3. usuário inativo;
+4. endpoint protegido sem sessão;
+5. endpoint protegido com sessão;
+6. logout;
+7. sessão inválida depois do logout;
+8. ADMIN acessando rota ADMIN;
+9. REPRESENTATIVE tentando acessar rota ADMIN;
+10. usuário sem autenticação tentando acessar rota ADMIN.
+
+---
+
+## 6. Segurança
+
+Revise também:
+
+* cookies;
+* expiração;
+* invalidação de sessão;
+* proteção contra session fixation;
+* armazenamento de senha;
+* armazenamento de token;
+* variáveis de ambiente;
+* comportamento em produção HTTPS.
+
+Não enfraqueça nenhuma configuração existente apenas para fazer os testes passarem.
+
+---
+
+## 7. Credencial de desenvolvimento
+
+O projeto atualmente possui uma credencial de desenvolvimento conhecida.
+
+Ela poderá continuar existindo exclusivamente no ambiente de desenvolvimento.
+
+Garanta que:
+
+* ela não seja criada automaticamente em produção;
+* nenhuma senha padrão exista no código de produção;
+* o processo de criação do primeiro ADMIN em produção continue dependendo do comando administrativo e de Secrets/variáveis de ambiente.
+
+---
+
+## 8. Não avançar de fase
+
+Nesta execução NÃO implementar:
+
+* customers;
+* products;
+* payment_terms;
+* carriers;
+* price_tables;
+* price_table_items;
+* orders;
+* order_items;
+* endpoints ERP comerciais.
+
+O objetivo é somente deixar a fundação pronta e segura.
+
+---
+
+## 9. Entrega
+
+Ao terminar, apresente:
+
+### Alterações realizadas
+
+Liste os arquivos e módulos importantes modificados.
+
+### Autenticação final
+
+Explique como ficou o fluxo:
+
+Login → Sessão → Cookie → requireAuth → requireRole → Logout
+
+### Banco
+
+Informe migrations criadas ou alteradas.
+
+### Testes
+
+Informe todos os testes executados e seus resultados.
+
+### Segurança
+
+Informe quais proteções estão implementadas.
+
+### Pendências
+
+Liste qualquer problema ainda existente.
+
+### Conclusão
+
+Informe explicitamente se considera a Fase 1 integralmente concluída e pronta para iniciar a Fase 2.
+
+Depois disso, PARE.
+
+Não inicie automaticamente a Fase 2.

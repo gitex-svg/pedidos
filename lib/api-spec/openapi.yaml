@@ -11,6 +11,7 @@ tags:
   - name: health
   - name: auth
   - name: dashboard
+  - name: admin
 paths:
   /healthz:
     get:
@@ -88,6 +89,30 @@ paths:
                 $ref: "#/components/schemas/DashboardSummary"
         "401":
           description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /v1/admin/health:
+    get:
+      operationId: adminHealthCheck
+      tags: [admin]
+      summary: Confirma acesso administrativo autenticado
+      responses:
+        "200":
+          description: Acesso administrativo válido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "401":
+          description: Não autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Perfil sem permissão administrativa
           content:
             application/json:
               schema:

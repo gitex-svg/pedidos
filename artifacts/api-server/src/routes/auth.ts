@@ -1,44 +1,45 @@
-import { Router, type IRouter, type Request } from "express";
+import { Router, type IRouter } from "express";
 import { z } from "zod";
-import { db, representatives } from "@workspace/db";
+import { db, users } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { authenticate, revokeToken, SESSION_COOKIE } from "../auth/session";
+import { auth } from "../auth/better-auth";
 import { publicUser } from "../auth/format";
-import { requireAuth } from "../middlewares/auth";
+import { requireAuth, requireTrustedOrigin } from "../middlewares/auth";
+import { getAuthenticatedRepresentative } from "../auth/representative";
+import { forwardAuthCookies, toWebHeaders } from "../auth/http";
 
 const router: IRouter = Router();
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(8) });
 
-function tokenFromRequest(req: Request) {
-  return req.cookies?.[SESSION_COOKIE] as string | undefined;
-}
-
-router.post("/v1/auth/login", async (req, res) => {
+router.post("/v1/auth/login", requireTrustedOrigin, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "Informe um e-mail e uma senha válidos." });
-  const result = await authenticate(parsed.data.email, parsed.data.password);
-  if (!result) return res.status(401).json({ error: "E-mail ou senha inválidos." });
-  const representative = await db.select().from(representatives).where(eq(representatives.userId, result.user.id)).limit(1);
-  res.cookie(SESSION_COOKIE, result.token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 1000 * 60 * 60 * 12,
-    path: "/",
+  const existing = await db.select().from(users).where(eq(users.email, parsed.data.email.toLowerCase())).limit(1);
+  if (!existing[0]?.active) return res.status(401).json({ error: "E-mail ou senha inválidos." });
+
+  const response = await auth.api.signInEmail({
+    body: { email: parsed.data.email.toLowerCase(), password: parsed.data.password },
+    headers: toWebHeaders(req),
+    asResponse: true,
   });
-  return res.json({ user: publicUser(result.user, representative[0]?.id ?? null) });
+  if (!response.ok) return res.status(401).json({ error: "E-mail ou senha inválidos." });
+  forwardAuthCookies(response, res);
+
+  await db.update(users).set({ lastLoginAt: new Date(), updatedAt: new Date() }).where(eq(users.id, existing[0].id));
+  const representative = await getAuthenticatedRepresentative(existing[0]);
+  return res.json({ user: publicUser(existing[0], representative?.id ?? null) });
 });
 
-router.post("/v1/auth/logout", async (req, res) => {
-  await revokeToken(tokenFromRequest(req));
-  res.clearCookie(SESSION_COOKIE, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/" });
+router.post("/v1/auth/logout", requireTrustedOrigin, async (req, res) => {
+  const response = await auth.api.signOut({ headers: toWebHeaders(req), asResponse: true });
+  forwardAuthCookies(response, res);
   return res.status(204).send();
 });
 
 router.get("/v1/auth/me", requireAuth, async (req, res) => {
   const user = req.authUser!;
-  const representative = await db.select().from(representatives).where(eq(representatives.userId, user.id)).limit(1);
-  return res.json(publicUser(user, representative[0]?.id ?? null));
+  const representative = await getAuthenticatedRepresentative(user);
+  return res.json(publicUser(user, representative?.id ?? null));
 });
 
 export default router;

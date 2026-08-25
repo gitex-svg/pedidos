@@ -1,0 +1,1 @@
+- [Better Auth hardening](better-auth-hardening.md) — credential issuers, legacy-route origin checks, and migration-history constraints that must remain intact.

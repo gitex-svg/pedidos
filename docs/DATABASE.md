@@ -2,8 +2,10 @@
 
 ## Entidades da Fase 1
 
-- `users`: identidade, perfil, hash de senha e situação.
-- `sessions`: token armazenado somente como hash, expiração e vínculo com usuário.
+- `users`: identidade, perfil, situação e campos obrigatórios do Better Auth.
+- `accounts`: credenciais de senha do provider `credential`; a senha não permanece em `users`.
+- `sessions`: sessões gerenciadas pelo Better Auth, com token assinado no cookie, expiração e vínculo com usuário.
+- `verifications`: estrutura do Better Auth para fluxos futuros de verificação.
 - `representatives`: cadastro ERP e vínculo opcional 1:1 com usuário.
 
 ## Enums

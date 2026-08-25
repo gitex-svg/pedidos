@@ -428,3 +428,80 @@ export function useGetDashboardSummary<TData = Awaited<ReturnType<typeof getDash
 
 
 
+export const getAdminHealthCheckUrl = () => {
+
+
+
+
+  return `/api/v1/admin/health`
+}
+
+/**
+ * @summary Confirma acesso administrativo autenticado
+ */
+export const adminHealthCheck = async ( options?: Parameters<typeof customFetch>[1]): Promise<HealthStatus> => {
+
+  return customFetch<HealthStatus>(getAdminHealthCheckUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminHealthCheckQueryKey = () => {
+    return [
+    `/api/v1/admin/health`
+    ] as const;
+    }
+
+
+export const getAdminHealthCheckQueryOptions = <TData = Awaited<ReturnType<typeof adminHealthCheck>>, TError = ErrorType<ErrorResponse>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminHealthCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminHealthCheckQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminHealthCheck>>> = ({ signal }) => adminHealthCheck({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminHealthCheck>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminHealthCheckQueryResult = NonNullable<Awaited<ReturnType<typeof adminHealthCheck>>>
+export type AdminHealthCheckQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Confirma acesso administrativo autenticado
+ */
+
+export function useAdminHealthCheck<TData = Awaited<ReturnType<typeof adminHealthCheck>>, TError = ErrorType<ErrorResponse>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminHealthCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
