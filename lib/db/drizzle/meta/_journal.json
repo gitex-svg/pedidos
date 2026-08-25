@@ -22,6 +22,13 @@
       "when": 1787683000000,
       "tag": "0002_better_auth_account_issuer",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787685000000,
+      "tag": "0003_fase_2_cadastros_erp",
+      "breakpoints": true
     }
   ]
 }

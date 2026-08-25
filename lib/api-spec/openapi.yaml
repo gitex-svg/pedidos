@@ -12,6 +12,8 @@ tags:
   - name: auth
   - name: dashboard
   - name: admin
+  - name: catalog
+  - name: erp
 paths:
   /healthz:
     get:
@@ -117,7 +119,114 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /v1/customers:
+    get:
+      operationId: listCustomers
+      tags: [catalog]
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Active"
+        - { name: sort, in: query, schema: { type: string, enum: [name, erpCode, city, updatedAt] } }
+        - $ref: "#/components/parameters/Order"
+      responses:
+        "200": { description: Clientes acessíveis paginados, content: { application/json: { schema: { $ref: "#/components/schemas/CustomerPage" } } } }
+        "401": { description: Não autenticado }
+        "403": { description: Representante sem vínculo ativo }
+  /v1/products:
+    get:
+      operationId: listProducts
+      tags: [catalog]
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Active"
+        - { name: groupCode, in: query, schema: { type: string } }
+        - { name: typeCode, in: query, schema: { type: string } }
+        - { name: sort, in: query, schema: { type: string, enum: [description, erp_id, product_code, updated_at] } }
+        - $ref: "#/components/parameters/Order"
+      responses:
+        "200": { description: Produtos paginados, content: { application/json: { schema: { $ref: "#/components/schemas/ProductPage" } } } }
+        "401": { description: Não autenticado }
+  /v1/payment-terms:
+    get:
+      operationId: listPaymentTerms
+      tags: [catalog]
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Active"
+        - $ref: "#/components/parameters/Order"
+      responses:
+        "200": { description: Condições paginadas, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentTermPage" } } } }
+  /v1/carriers:
+    get:
+      operationId: listCarriers
+      tags: [catalog]
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Search"
+        - $ref: "#/components/parameters/Active"
+        - $ref: "#/components/parameters/Order"
+      responses:
+        "200": { description: Transportadoras paginadas, content: { application/json: { schema: { $ref: "#/components/schemas/CarrierPage" } } } }
+  /v1/erp/representatives/sync:
+    post:
+      operationId: syncRepresentatives
+      tags: [erp]
+      security: [{ erpApiKey: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/RepresentativeSyncBatch" } } } }
+      responses: { "200": { $ref: "#/components/responses/SyncResult" }, "207": { $ref: "#/components/responses/SyncResult" }, "400": { description: Lote inválido }, "401": { description: API key inválida } }
+  /v1/erp/customers/sync:
+    post:
+      operationId: syncCustomers
+      tags: [erp]
+      security: [{ erpApiKey: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CustomerSyncBatch" } } } }
+      responses: { "200": { $ref: "#/components/responses/SyncResult" }, "207": { $ref: "#/components/responses/SyncResult" }, "400": { description: Lote inválido }, "401": { description: API key inválida } }
+  /v1/erp/products/sync:
+    post:
+      operationId: syncProducts
+      tags: [erp]
+      security: [{ erpApiKey: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ProductSyncBatch" } } } }
+      responses: { "200": { $ref: "#/components/responses/SyncResult" }, "207": { $ref: "#/components/responses/SyncResult" }, "400": { description: Lote inválido }, "401": { description: API key inválida } }
+  /v1/erp/payment-terms/sync:
+    post:
+      operationId: syncPaymentTerms
+      tags: [erp]
+      security: [{ erpApiKey: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/PaymentTermSyncBatch" } } } }
+      responses: { "200": { $ref: "#/components/responses/SyncResult" }, "207": { $ref: "#/components/responses/SyncResult" }, "400": { description: Lote inválido }, "401": { description: API key inválida } }
+  /v1/erp/carriers/sync:
+    post:
+      operationId: syncCarriers
+      tags: [erp]
+      security: [{ erpApiKey: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CarrierSyncBatch" } } } }
+      responses: { "200": { $ref: "#/components/responses/SyncResult" }, "207": { $ref: "#/components/responses/SyncResult" }, "400": { description: Lote inválido }, "401": { description: API key inválida } }
 components:
+  securitySchemes:
+    sessionCookie: { type: apiKey, in: cookie, name: better-auth.session_token }
+    erpApiKey: { type: http, scheme: bearer }
+  parameters:
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    Search: { name: search, in: query, schema: { type: string, maxLength: 200 } }
+    Active: { name: active, in: query, description: Disponível a administradores; representantes sempre veem ativos, schema: { type: boolean } }
+    Order: { name: order, in: query, schema: { type: string, enum: [asc, desc], default: asc } }
+  responses:
+    SyncResult:
+      description: Resultado integral ou parcial do lote
+      content: { application/json: { schema: { $ref: "#/components/schemas/SyncResult" } } }
   schemas:
     HealthStatus:
       type: object
@@ -168,3 +277,52 @@ components:
       properties:
         error: { type: string }
       required: [error]
+    PageMeta:
+      type: object
+      properties: { page: { type: integer }, limit: { type: integer }, total: { type: integer }, totalPages: { type: integer } }
+      required: [page, limit, total, totalPages]
+    Customer:
+      type: object
+      properties: { id: { type: string, format: uuid }, erp_code: { type: string }, representative_id: { type: string, format: uuid }, cnpj_cpf: { type: [string, "null"] }, corporate_name: { type: string }, trade_name: { type: [string, "null"] }, active: { type: boolean } }
+      required: [id, erp_code, representative_id, corporate_name, active]
+    Product:
+      type: object
+      properties: { id: { type: string, format: uuid }, erp_id: { type: string }, code: { type: string }, description: { type: string }, collection: { type: [string, "null"] }, packaging: { type: [string, "null"] }, width: { type: [string, "null"] }, color: { type: [string, "null"] }, group_code: { type: string, maxLength: 2 }, type_code: { type: string, maxLength: 2 }, product_code: { type: string, maxLength: 4 }, reference_code: { type: string, maxLength: 8 }, active: { type: boolean } }
+      required: [id, erp_id, code, description, group_code, type_code, product_code, reference_code, active]
+    PaymentTerm:
+      type: object
+      properties: { id: { type: string, format: uuid }, erpCode: { type: string }, description: { type: string }, active: { type: boolean } }
+      required: [id, erpCode, description, active]
+    Carrier:
+      type: object
+      properties: { id: { type: string, format: uuid }, erpCode: { type: string }, name: { type: string }, active: { type: boolean } }
+      required: [id, erpCode, name, active]
+    CustomerPage: { allOf: [{ $ref: "#/components/schemas/PageMeta" }, { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/Customer" } } }, required: [items] }] }
+    ProductPage: { allOf: [{ $ref: "#/components/schemas/PageMeta" }, { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/Product" } } }, required: [items] }] }
+    PaymentTermPage: { allOf: [{ $ref: "#/components/schemas/PageMeta" }, { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/PaymentTerm" } } }, required: [items] }] }
+    CarrierPage: { allOf: [{ $ref: "#/components/schemas/PageMeta" }, { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/Carrier" } } }, required: [items] }] }
+    SyncBase:
+      type: object
+      properties: { active: { type: boolean, default: true }, source_updated_at: { type: string, format: date-time } }
+      required: [source_updated_at]
+    RepresentativeSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_code: { type: string }, name: { type: string }, email: { type: [string, "null"], format: email } }, required: [erp_code, name] }] }
+    CustomerSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_code: { type: string }, representative_erp_code: { type: string }, corporate_name: { type: string }, trade_name: { type: [string, "null"] }, cnpj_cpf: { type: [string, "null"] }, city: { type: [string, "null"] }, state: { type: [string, "null"] } }, required: [erp_code, representative_erp_code, corporate_name] }] }
+    ProductSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_id: { type: string }, code: { type: string }, description: { type: string }, group_code: { type: string, maxLength: 2 }, type_code: { type: string, maxLength: 2 }, product_code: { type: string, maxLength: 4 }, reference_code: { type: string, maxLength: 8 } }, required: [erp_id, code, description, group_code, type_code, product_code, reference_code] }] }
+    PaymentTermSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_code: { type: string }, description: { type: string }, installments: { type: [integer, "null"] } }, required: [erp_code, description] }] }
+    CarrierSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_code: { type: string }, name: { type: string }, tax_id: { type: [string, "null"] } }, required: [erp_code, name] }] }
+    RepresentativeSyncBatch: { type: object, properties: { correlation_id: { type: string, format: uuid }, items: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/RepresentativeSyncItem" } } }, required: [items] }
+    CustomerSyncBatch: { type: object, properties: { correlation_id: { type: string, format: uuid }, items: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/CustomerSyncItem" } } }, required: [items] }
+    ProductSyncBatch: { type: object, properties: { correlation_id: { type: string, format: uuid }, items: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/ProductSyncItem" } } }, required: [items] }
+    PaymentTermSyncBatch: { type: object, properties: { correlation_id: { type: string, format: uuid }, items: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/PaymentTermSyncItem" } } }, required: [items] }
+    CarrierSyncBatch: { type: object, properties: { correlation_id: { type: string, format: uuid }, items: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/CarrierSyncItem" } } }, required: [items] }
+    SyncResult:
+      type: object
+      properties:
+        correlation_id: { type: string, format: uuid }
+        received: { type: integer }
+        created: { type: integer }
+        updated: { type: integer }
+        ignored: { type: integer }
+        errors: { type: integer }
+        item_errors: { type: array, items: { type: object, properties: { index: { type: integer }, external_id: { type: string }, error: { type: string } }, required: [index, error] } }
+      required: [correlation_id, received, created, updated, ignored, errors, item_errors]

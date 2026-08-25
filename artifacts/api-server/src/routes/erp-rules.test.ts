@@ -1,0 +1,33 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { erpBatchSchema, erpItemSchemas, isStale } from "./erp";
+
+test("product ERP codes remain strings and preserve leading zeros", () => {
+  const result = erpItemSchemas.products.parse({
+    erp_id: "000123",
+    code: "000045",
+    description: "Fita",
+    group_code: "01",
+    type_code: "02",
+    product_code: "0045",
+    reference_code: "00000009",
+    active: false,
+    source_updated_at: "2026-01-01T00:00:00Z",
+  });
+  assert.equal(result.erp_id, "000123");
+  assert.equal(result.product_code, "0045");
+  assert.equal(result.active, false);
+});
+
+test("batch limit is 500 and validation remains per item", () => {
+  assert.equal(erpBatchSchema.safeParse({ items: Array(500).fill({}) }).success, true);
+  assert.equal(erpBatchSchema.safeParse({ items: Array(501).fill({}) }).success, false);
+  assert.equal(erpItemSchemas.carriers.safeParse({ erp_code: "", name: "", source_updated_at: "bad" }).success, false);
+});
+
+test("equal and older source timestamps are stale", () => {
+  const current = new Date("2026-02-02T12:00:00Z");
+  assert.equal(isStale(current, new Date("2026-02-02T12:00:00Z")), true);
+  assert.equal(isStale(current, new Date("2026-02-01T12:00:00Z")), true);
+  assert.equal(isStale(current, new Date("2026-02-03T12:00:00Z")), false);
+});
