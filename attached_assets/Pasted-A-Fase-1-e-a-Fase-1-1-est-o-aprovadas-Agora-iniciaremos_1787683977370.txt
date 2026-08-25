@@ -1,0 +1,868 @@
+A Fase 1 e a Fase 1.1 estão aprovadas.
+
+Agora iniciaremos:
+
+# FASE 2 — CADASTROS E SINCRONIZAÇÃO INICIAL COM ERP
+
+Nesta fase implemente os cadastros-base que serão utilizados posteriormente pelo sistema de pedidos.
+
+IMPORTANTE:
+
+O ERP será a FONTE PRINCIPAL dos cadastros.
+
+Portanto, não criar telas CRUD completas para manutenção manual desses cadastros.
+
+O sistema web deverá:
+
+ERP → API → PostgreSQL → Sistema Web
+
+Os cadastros deverão ser sincronizados através de API e posteriormente consultados pela aplicação.
+
+Nesta fase ainda NÃO implementar:
+
+* pedidos;
+* itens de pedido;
+* descontos;
+* preço especial;
+* digitação de orçamento;
+* sincronização de pedidos para o ERP.
+
+---
+
+# 1. ENTIDADES
+
+Implementar:
+
+* representatives
+* customers
+* products
+* payment_terms
+* carriers
+
+`representatives` já possui estrutura inicial da Fase 1.
+
+Evolua essa estrutura somente se necessário e sempre através de migration.
+
+---
+
+# 2. REPRESENTANTES
+
+O ERP será responsável por sincronizar representantes.
+
+Manter pelo menos:
+
+* id UUID interno
+* erp_code
+* name
+* email
+* user_id
+* active
+* source_updated_at
+* last_synced_at
+* created_at
+* updated_at
+
+`erp_code` deverá identificar o representante no ERP.
+
+Não utilizar `erp_code` como primary key.
+
+Criar índice/constraint apropriado para impedir representantes duplicados pelo mesmo código ERP.
+
+A sincronização deverá utilizar UPSERT.
+
+IMPORTANTE:
+
+O vínculo entre:
+
+representative.user_id
+
+e:
+
+users.id
+
+é uma informação interna do sistema e NÃO deverá ser sobrescrita indiscriminadamente pela sincronização do ERP.
+
+---
+
+# 3. CLIENTES
+
+Criar `customers`.
+
+Campos mínimos:
+
+* id UUID
+* erp_code
+* cnpj_cpf
+* corporate_name
+* trade_name
+* representative_id
+* city
+* state
+* active
+* source_updated_at
+* last_synced_at
+* created_at
+* updated_at
+
+Cada cliente pertence a um representante.
+
+A associação recebida do ERP deverá utilizar o código ERP do representante para localizar internamente o `representative_id`.
+
+Exemplo recebido:
+
+representative_erp_code = "028"
+
+O backend deverá localizar:
+
+representatives.erp_code = "028"
+
+e gravar o UUID correspondente em:
+
+customers.representative_id
+
+Não receber UUID interno do banco através da integração ERP.
+
+---
+
+# 4. PESQUISA DE CLIENTES
+
+Criar endpoint autenticado:
+
+GET /api/v1/customers
+
+REPRESENTATIVE:
+
+retorna somente clientes pertencentes ao representante autenticado.
+
+Utilizar obrigatoriamente:
+
+getAuthenticatedRepresentative()
+
+Nunca confiar em:
+
+representative_id
+
+enviado pelo frontend.
+
+ADMIN:
+
+poderá consultar todos.
+
+Permitir pesquisa por:
+
+* erp_code
+* cnpj_cpf
+* corporate_name
+* trade_name
+
+Implementar:
+
+* paginação;
+* limite máximo por página;
+* ordenação;
+* pesquisa textual.
+
+Não carregar todos os clientes no navegador.
+
+---
+
+# 5. PRODUTOS
+
+Criar `products`.
+
+Campos:
+
+* id UUID
+* erp_id
+* code
+* description
+* collection
+* packaging
+* width
+* color
+
+Campos obrigatórios de integração ERP:
+
+* group_code VARCHAR(2)
+* type_code VARCHAR(2)
+* product_code VARCHAR(4)
+* reference_code VARCHAR(8)
+
+Também:
+
+* active
+* source_updated_at
+* last_synced_at
+* created_at
+* updated_at
+
+IMPORTANTE:
+
+group_code
+type_code
+product_code
+reference_code
+
+são TEXTO.
+
+Nunca converter para INTEGER.
+
+Preservar zeros à esquerda.
+
+Exemplos:
+
+group_code = "01"
+
+type_code = "02"
+
+product_code = "0025"
+
+reference_code = "00001234"
+
+---
+
+# 6. IDENTIDADE DO PRODUTO
+
+Neste momento NÃO criar UNIQUE em:
+
+(group_code, type_code, product_code, reference_code)
+
+até confirmação definitiva de que a combinação é globalmente única no ERP.
+
+Criar índice composto para pesquisa.
+
+Também avaliar índices adequados para:
+
+* code
+* description
+* group_code
+* type_code
+* product_code
+* reference_code
+
+Evitar excesso de índices.
+
+---
+
+# 7. PESQUISA DE PRODUTOS
+
+Criar endpoint autenticado:
+
+GET /api/v1/products
+
+Esse endpoint será utilizado futuramente na tela de inclusão de itens do orçamento.
+
+A pesquisa precisa ser eficiente.
+
+Permitir filtros por:
+
+* group_code
+* type_code
+* product_code
+* reference_code
+* code
+* description
+* collection
+* packaging
+* width
+* color
+
+Permitir pesquisas parciais onde fizer sentido.
+
+Exemplo:
+
+group_code=01
+type_code=02
+product_code=0025
+
+deverá localizar produtos correspondentes mesmo sem informar referência.
+
+Outro exemplo:
+
+description=cetim
+
+deverá localizar produtos cuja descrição contenha "cetim", respeitando paginação.
+
+Não carregar todos os produtos para depois filtrar no frontend.
+
+A consulta deverá acontecer no PostgreSQL.
+
+---
+
+# 8. PESQUISA RÁPIDA DE PRODUTO
+
+Além dos filtros individuais, preparar uma pesquisa rápida através de parâmetro:
+
+q
+
+Exemplo:
+
+GET /api/v1/products?q=cetim
+
+ou:
+
+GET /api/v1/products?q=0025
+
+O serviço deverá procurar de maneira apropriada em campos relevantes.
+
+Não implementar uma pesquisa excessivamente complexa nesta fase.
+
+Priorizar desempenho e previsibilidade.
+
+---
+
+# 9. PRODUCT SERVICE
+
+Implementar `ProductService`.
+
+Ele deverá centralizar:
+
+* busca paginada;
+* filtros;
+* localização por identificação ERP;
+* validação de produto ativo.
+
+Manter método para localizar por:
+
+group_code
+type_code
+product_code
+reference_code
+
+Não colocar essas regras diretamente nas rotas Express.
+
+---
+
+# 10. CUSTOMER SERVICE
+
+Implementar `CustomerService`.
+
+Responsabilidades:
+
+* pesquisa;
+* paginação;
+* autorização;
+* filtro por representante;
+* localização por código ERP;
+* validação de cliente ativo.
+
+REPRESENTATIVE nunca deverá conseguir consultar cliente pertencente a outro representante.
+
+---
+
+# 11. CONDIÇÕES DE PAGAMENTO
+
+Criar `payment_terms`.
+
+Campos:
+
+* id UUID
+* erp_code
+* description
+* active
+* source_updated_at
+* last_synced_at
+* created_at
+* updated_at
+
+Criar endpoint autenticado:
+
+GET /api/v1/payment-terms
+
+Inicialmente retornar somente registros ativos para representantes.
+
+ADMIN poderá consultar ativos e inativos através de parâmetro apropriado.
+
+---
+
+# 12. TRANSPORTADORAS
+
+Criar `carriers`.
+
+Campos iniciais:
+
+* id UUID
+* erp_code
+* name
+* active
+* source_updated_at
+* last_synced_at
+* created_at
+* updated_at
+
+Criar endpoint:
+
+GET /api/v1/carriers
+
+Retornar transportadoras ativas para representantes.
+
+IMPORTANTE:
+
+A estrutura poderá ser ampliada futuramente conforme o contrato real do ERP.
+
+---
+
+# 13. API ERP
+
+Criar os primeiros endpoints reais:
+
+POST /api/v1/erp/representatives/sync
+
+POST /api/v1/erp/customers/sync
+
+POST /api/v1/erp/products/sync
+
+POST /api/v1/erp/payment-terms/sync
+
+POST /api/v1/erp/carriers/sync
+
+Esses endpoints NÃO utilizam autenticação de usuário/representante.
+
+Utilizam autenticação server-to-server própria do ERP.
+
+---
+
+# 14. AUTENTICAÇÃO ERP
+
+Implementar inicialmente uma solução server-to-server simples e segura.
+
+Preferência inicial:
+
+API Key forte enviada através de header.
+
+Por exemplo conceitual:
+
+Authorization: Bearer <ERP_API_KEY>
+
+ou header equivalente.
+
+A chave deverá existir SOMENTE em variável de ambiente/Secret do Replit.
+
+Nunca:
+
+* salvar no banco em texto aberto;
+* incluir no frontend;
+* incluir em logs;
+* retornar em erros;
+* colocar no Git.
+
+Utilizar comparação segura quando aplicável.
+
+Preparar arquitetura para futuramente migrar para HMAC caso seja necessário.
+
+---
+
+# 15. IDEMPOTÊNCIA / UPSERT
+
+Todos os endpoints de sincronização deverão ser idempotentes.
+
+Exemplo:
+
+ERP envia produto 123.
+
+Sistema cria.
+
+ERP envia novamente produto 123.
+
+Sistema ATUALIZA.
+
+Não cria outro produto.
+
+Utilizar:
+
+erp_id
+
+ou:
+
+erp_code
+
+conforme a entidade.
+
+Definir claramente qual identificador externo será utilizado para cada cadastro.
+
+---
+
+# 16. SINCRONIZAÇÃO EM LOTE
+
+Os endpoints deverão aceitar múltiplos registros por requisição.
+
+Exemplo conceitual:
+
+{
+"items": [
+{...},
+{...},
+{...}
+]
+}
+
+Não obrigar o ERP a fazer uma requisição HTTP individual para cada produto.
+
+Definir um limite razoável por lote.
+
+Sugestão inicial:
+
+500 registros.
+
+Se considerar outro limite mais apropriado, explique.
+
+A resposta deverá informar pelo menos:
+
+* recebidos;
+* criados;
+* atualizados;
+* ignorados;
+* erros.
+
+Erros individuais deverão identificar o registro sem expor dados sensíveis.
+
+Avalie cuidadosamente se um registro inválido deverá invalidar todo o lote ou apenas aquele item.
+
+Prefira estratégia que facilite reprocessamento pelo ERP.
+
+---
+
+# 17. DATA/HORA DO ERP
+
+Quando o ERP enviar a data de última alteração do registro, armazenar em:
+
+source_updated_at
+
+Depois de sincronizar:
+
+last_synced_at = horário atual do sistema.
+
+Se receber posteriormente um registro com `source_updated_at` anterior ao já armazenado, não sobrescrever silenciosamente uma versão mais nova.
+
+Definir comportamento e documentar.
+
+---
+
+# 18. INATIVAÇÃO
+
+Cadastros sincronizados não deverão ser fisicamente excluídos.
+
+ERP deverá poder enviar:
+
+active = false
+
+O sistema deverá manter o registro e marcá-lo como inativo.
+
+Isso é importante para histórico futuro de pedidos.
+
+---
+
+# 19. LOG DE INTEGRAÇÃO
+
+Implementar `integration_logs` nesta fase.
+
+Campos:
+
+* id
+* direction
+* endpoint
+* method
+* entity
+* entity_id
+* external_id
+* correlation_id
+* status
+* error_message
+* created_at
+
+Não criar FK obrigatória exclusivamente com orders.
+
+Registrar integrações ERP relevantes.
+
+Não registrar:
+
+* API Key;
+* Authorization;
+* cookies;
+* senhas;
+* tokens.
+
+Criar `correlation_id` para permitir rastrear uma requisição/lote.
+
+---
+
+# 20. TRANSAÇÕES
+
+Utilizar transações PostgreSQL quando necessário.
+
+Principalmente para operações em lote em que múltiplas gravações relacionadas precisam permanecer consistentes.
+
+Evitar transações excessivamente longas para lotes grandes.
+
+---
+
+# 21. VALIDAÇÃO
+
+Todos os payloads ERP devem utilizar Zod.
+
+Validar:
+
+* tamanho dos códigos;
+* tipos;
+* campos obrigatórios;
+* datas;
+* valores vazios;
+* formato dos objetos.
+
+Para produtos, validar especialmente:
+
+group_code máximo 2
+type_code máximo 2
+product_code máximo 4
+reference_code máximo 8
+
+Não remover zeros à esquerda.
+
+---
+
+# 22. OPENAPI
+
+Atualizar:
+
+lib/api-spec/openapi.yaml
+
+Documentar:
+
+* endpoints;
+* parâmetros;
+* paginação;
+* filtros;
+* payloads;
+* respostas;
+* códigos HTTP;
+* autenticação ERP.
+
+O contrato deverá posteriormente servir de referência para implementar o cliente no ERP.
+
+---
+
+# 23. TESTES
+
+Criar testes automatizados para:
+
+## Representantes
+
+* UPSERT cria representante;
+* segundo envio atualiza sem duplicar;
+* user_id existente não é sobrescrito indevidamente.
+
+## Clientes
+
+* sincronização associa representante corretamente;
+* representante A consulta seus clientes;
+* representante A não consulta clientes do representante B;
+* ADMIN pode consultar todos.
+
+## Produtos
+
+* zeros à esquerda são preservados;
+* busca por Grupo funciona;
+* Grupo + Tipo funciona;
+* Grupo + Tipo + Produto funciona;
+* Grupo + Tipo + Produto + Referência funciona;
+* pesquisa por descrição funciona;
+* paginação funciona;
+* produto inativo não aparece para representante quando aplicável.
+
+## ERP
+
+* requisição sem API Key é rejeitada;
+* API Key inválida é rejeitada;
+* API Key válida é aceita;
+* lote repetido não duplica registros;
+* payload inválido é tratado corretamente;
+* `source_updated_at` antigo não sobrescreve registro mais novo.
+
+## Condições/Transportadoras
+
+* sincronização idempotente;
+* somente registros ativos são apresentados ao representante.
+
+---
+
+# 24. FRONTEND
+
+Nesta fase criar apenas telas de CONSULTA necessárias para validar os cadastros.
+
+Adicionar ao menu:
+
+* Clientes
+* Produtos
+
+## Clientes
+
+Tela responsiva contendo:
+
+* pesquisa;
+* paginação;
+* código;
+* razão social;
+* nome fantasia;
+* cidade/UF.
+
+REPRESENTATIVE vê somente seus clientes.
+
+ADMIN pode visualizar todos.
+
+## Produtos
+
+Criar uma tela de consulta de produtos.
+
+No desktop, permitir filtros:
+
+Grupo
+Tipo
+Produto
+Referência
+Descrição
+
+No celular, criar interface simplificada e responsiva.
+
+Exibir:
+
+* Grupo
+* Tipo
+* Produto
+* Referência
+* descrição
+* embalagem
+* largura
+* cor
+
+Não implementar ainda botão "Adicionar ao Pedido".
+
+---
+
+# 25. PERFORMANCE
+
+Todas as listagens devem ser paginadas no servidor.
+
+Não carregar milhares de produtos/clientes no navegador.
+
+Evitar consultas N+1.
+
+Utilizar índices adequados.
+
+Estabelecer limite máximo de registros por página.
+
+Sugestão:
+
+20 padrão
+100 máximo
+
+---
+
+# 26. DOCUMENTAÇÃO
+
+Atualizar:
+
+README.md
+
+docs/ARCHITECTURE.md
+
+docs/DATABASE.md
+
+docs/BUSINESS_RULES.md
+
+docs/ERP_API.md
+
+docs/CHANGELOG.md
+
+Documentar claramente que:
+
+ERP = fonte dos cadastros.
+
+Sistema Web = consumidor desses cadastros.
+
+---
+
+# 27. NÃO IMPLEMENTAR AINDA
+
+Não implementar:
+
+* price_tables;
+* price_table_items;
+* PricingService real;
+* orders;
+* order_items;
+* DiscountService real;
+* preço especial;
+* envio/consulta de pedidos pelo ERP;
+* alteração de status ERP;
+* PWA.
+
+Esses itens pertencem às próximas fases.
+
+---
+
+# 28. EXECUÇÃO
+
+Antes de alterar o código:
+
+1. analise o schema atual;
+2. analise migrations existentes;
+3. analise autenticação existente;
+4. preserve a implementação da Fase 1.1;
+5. apresente brevemente o plano de alteração.
+
+Depois implemente a Fase 2.
+
+Ao terminar execute:
+
+* migrations;
+* typecheck;
+* testes;
+* build;
+* validação HTTP;
+* validação visual mobile.
+
+---
+
+# 29. ENTREGA
+
+Ao finalizar, apresente:
+
+## Banco
+
+Tabelas e migrations criadas.
+
+## APIs Web
+
+Endpoints criados para a aplicação.
+
+## APIs ERP
+
+Endpoints de sincronização criados.
+
+## Segurança
+
+Como a API ERP foi protegida.
+
+## Sincronização
+
+Como funciona UPSERT, lote, source_updated_at e inativação.
+
+## Pesquisa
+
+Como funcionam clientes e produtos.
+
+## Testes
+
+Quantidade de testes e resultado.
+
+## Interface
+
+Telas criadas e validação mobile.
+
+## Pendências
+
+Qualquer problema ou decisão ainda necessária.
+
+Depois PARE.
+
+Não inicie automaticamente a Fase 3.
