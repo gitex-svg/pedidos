@@ -65,11 +65,11 @@ export default function Products() {
     }
   }, [currentUser.isError, currentUser.isFetching, queryClient, setLocation]);
 
-  const limit = 24;
+  const pageSize = 20;
   const productsQuery = useListProducts(
     { 
       page, 
-      limit, 
+      pageSize, 
       q: debouncedQ || undefined,
       active: isAdmin ? (showInactive ? undefined : true) : true,
       group_code: debouncedGroup || undefined,
@@ -82,7 +82,7 @@ export default function Products() {
       query: { 
         enabled: !!currentUser.data,
         queryKey: getListProductsQueryKey({ 
-          page, limit, q: debouncedQ || undefined, active: isAdmin ? (showInactive ? undefined : true) : true,
+          page, pageSize, q: debouncedQ || undefined, active: isAdmin ? (showInactive ? undefined : true) : true,
           group_code: debouncedGroup || undefined, type_code: debouncedType || undefined,
           product_code: debouncedProduct || undefined, reference_code: debouncedRef || undefined, description: debouncedDesc || undefined
         })
@@ -284,10 +284,10 @@ export default function Products() {
                   ))}
                 </div>
 
-                {data && data.total_pages > 1 && (
+                {data && data.totalPages > 1 && (
                   <div className="mt-8 flex items-center justify-between border-t border-border pt-6" data-testid="pagination-products">
                     <p className="text-xs text-muted-foreground">
-                      Mostrando <span className="font-semibold text-foreground">{(page - 1) * limit + 1}</span> a <span className="font-semibold text-foreground">{Math.min(page * limit, data.total)}</span> de <span className="font-semibold text-foreground">{data.total}</span>
+                      Mostrando <span className="font-semibold text-foreground">{(page - 1) * pageSize + 1}</span> a <span className="font-semibold text-foreground">{Math.min(page * pageSize, data.totalItems)}</span> de <span className="font-semibold text-foreground">{data.totalItems}</span>
                     </p>
                     <div className="flex items-center gap-2">
                       <button
@@ -301,7 +301,7 @@ export default function Products() {
                       </button>
                       <button
                         type="button"
-                        disabled={page === data.total_pages}
+                        disabled={page === data.totalPages}
                         onClick={() => setPage((p) => p + 1)}
                         className="flex h-8 items-center gap-1 rounded-md border border-border bg-card px-3 text-xs font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted disabled:opacity-50"
                         data-testid="button-next-page"

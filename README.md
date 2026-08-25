@@ -1,3 +1,12 @@
+## API de cadastros
+
+As consultas autenticadas de clientes, produtos, condições de pagamento e transportadoras usam
+`page`, `pageSize` (padrão efetivo 20, limitado a 100), `totalItems` e `totalPages`. O parâmetro `limit`
+continua aceito apenas como compatibilidade quando `pageSize` não é informado; `pageSize` tem prioridade.
+
+Os lotes ERP retornam contadores, `item_errors` e um `results` ordenado por item, além do
+`correlation_id` persistido para rastreabilidade.
+
 # Pedidos Fitas Gitex
 
 Fundação do sistema web para representantes comerciais criarem e acompanharem pedidos e orçamentos. A Fase 1 entrega autenticação, autorização inicial, login, logout, dashboard protegido, banco e contratos de serviços. A Fase 2 entrega os cadastros de catálogo sincronizados pelo ERP.
@@ -10,7 +19,7 @@ O **ERP é a fonte de verdade** para representantes, clientes, produtos, condiç
 - Integração de entrada ERP: `POST /api/v1/erp/representatives/sync`,
   `/customers/sync`, `/products/sync`, `/payment-terms/sync` e `/carriers/sync`.
 - Cada lote aceita no máximo 500 itens; a paginação de catálogo usa `page=1`,
-  `limit=20` por padrão e aceita `limit` até 100.
+  `pageSize=20` efetivo por padrão e limita valores acima de 100.
 - A integração usa `Authorization: Bearer <ERP_API_KEY>`. Configure
   `ERP_API_KEY` exclusivamente como secret/variável de ambiente; nunca a
   registre no repositório, no frontend ou em logs.

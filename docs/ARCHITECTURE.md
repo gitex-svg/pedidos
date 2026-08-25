@@ -1,3 +1,8 @@
+## Integração ERP
+
+A borda ERP é autenticada por API key e processa lotes item a item. UPSERTs e proteção de versão
+são atômicos no PostgreSQL; consultas paginadas aplicam filtros, contagem e offset no banco.
+
 # Arquitetura
 
 ## Componentes
@@ -38,8 +43,8 @@ cadastros; é uma consumidora read-only dos dados sincronizados.
   informa os erros sem descartar os itens válidos.
 - Toda execução é rastreável por `correlation_id`, propagado na resposta e nos
   logs de integração.
-- Listagens são paginadas com `page=1` e `limit=20` por padrão; `limit` máximo
-  é 100.
+- Listagens são paginadas com `page=1` e `pageSize=20` efetivo por padrão;
+  valores acima de 100 são limitados a 100 e `limit` é fallback legado.
 
 O contrato de payloads e respostas está em `docs/ERP_API.md` e em
 `lib/api-spec/openapi.yaml`.

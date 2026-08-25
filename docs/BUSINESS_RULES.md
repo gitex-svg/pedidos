@@ -1,3 +1,9 @@
+## Sincronização e paginação
+
+- O ERP é a fonte dos cadastros e versões anteriores ou iguais são ignoradas.
+- Cada item de lote recebe resultado `created`, `updated`, `ignored` ou `error`.
+- Consultas usam `pageSize` (20 por padrão, máximo efetivo 100); `limit` é legado.
+
 # Regras de negócio
 
 ## Preços

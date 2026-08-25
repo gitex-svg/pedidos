@@ -29,7 +29,9 @@ capturas de tela ou logs. Uma chave ausente ou inválida recebe `401`.
 
 Os consumidores web consultam, respectivamente, `GET /api/v1/customers`,
 `/products`, `/payment-terms` e `/carriers`. As listagens usam `page=1` e
-`limit=20` por padrão; o máximo de `limit` é 100.
+`pageSize=20` efetivo por padrão. Valores de `pageSize` acima de 100 são
+limitados a 100. `limit` é legado: só é usado quando `pageSize` não é enviado;
+quando ambos existem, `pageSize` tem prioridade.
 
 ## Lotes, validação e resultado
 
@@ -53,8 +55,9 @@ ponta.
 - O processamento faz UPSERT idempotente por chave externa: `erp_code` para
   representantes, clientes, condições e transportadoras; `erp_id` para
   produtos.
-- Eventos com `source_updated_at` anterior ao registro já persistido são
-  ignorados (`ignored`); reenvios não devem criar duplicidade.
+- Eventos com `source_updated_at` anterior ou igual ao registro já persistido
+  são ignorados (`ignored`) atomicamente;
+  reenvios não devem criar duplicidade.
 - `active=false` é retenção/inativação lógica, não exclusão física.
 - A sincronização de representante preserva o `user_id` já associado ao
   representante local.
@@ -63,6 +66,12 @@ ponta.
 
 Os campos obrigatórios e formatos de cada item estão definidos no contrato
 OpenAPI em `lib/api-spec/openapi.yaml`.
+
+Cada resposta mantém contadores e `item_errors` e inclui um `results` em ordem,
+com um resultado por item. As razões estáveis são `STALE_SOURCE_VERSION`,
+`REPRESENTATIVE_NOT_FOUND`, `VALIDATION_ERROR` e `PERSISTENCE_ERROR`.
+O `correlation_id` UUID fornecido é preservado; quando ausente, é gerado e
+persistido em `integration_logs`.
 
 ## Fora do escopo da Fase 2
 

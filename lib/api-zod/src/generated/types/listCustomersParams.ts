@@ -6,10 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { ActiveParameter } from './activeParameter';
-import type { LimitParameter } from './limitParameter';
+import type { LegacyLimitParameter } from './legacyLimitParameter';
 import type { ListCustomersSort } from './listCustomersSort';
 import type { OrderParameter } from './orderParameter';
 import type { PageParameter } from './pageParameter';
+import type { PageSizeParameter } from './pageSizeParameter';
 import type { SearchParameter } from './searchParameter';
 
 export type ListCustomersParams = {
@@ -18,10 +19,15 @@ export type ListCustomersParams = {
  */
 page?: PageParameter;
 /**
+ * Tamanho efetivo padrão é 20; valores acima de 100 são limitados a 100. Quando informado, tem prioridade sobre limit.
  * @minimum 1
- * @maximum 100
  */
-limit?: LimitParameter;
+pageSize?: PageSizeParameter;
+/**
+ * Usado somente quando pageSize não é informado; na ausência de ambos o tamanho efetivo é 20.
+ * @minimum 1
+ */
+limit?: LegacyLimitParameter;
 /**
  * @maxLength 200
  */

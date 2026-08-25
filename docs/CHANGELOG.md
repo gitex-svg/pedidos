@@ -1,3 +1,10 @@
+## Fase 2 — revisão pós-entrega
+
+- Resultado ordenado por item e razões estáveis nos lotes ERP.
+- Correlação fornecida ou gerada registrada em logs.
+- Paginação canônica com `pageSize`, `totalItems` e `totalPages`.
+- Timestamp de origem igual passou a ser explicitamente ignorado.
+
 # Changelog
 
 ## Fase 2 — Cadastros e sincronização ERP

@@ -55,7 +55,7 @@ export default function Customers() {
   const customersQuery = useListCustomers(
     { 
       page, 
-      limit: 15, 
+      pageSize: 20, 
       search: debouncedSearch || undefined,
       active: isAdmin ? (showInactive ? undefined : true) : true
     }, 
@@ -63,7 +63,7 @@ export default function Customers() {
       query: { 
         enabled: !!currentUser.data,
         queryKey: getListCustomersQueryKey({ 
-          page, limit: 15, search: debouncedSearch || undefined, active: isAdmin ? (showInactive ? undefined : true) : true 
+          page, pageSize: 20, search: debouncedSearch || undefined, active: isAdmin ? (showInactive ? undefined : true) : true 
         })
       } 
     }
@@ -221,10 +221,10 @@ export default function Customers() {
                   ))}
                 </div>
 
-                {data && data.total_pages > 1 && (
+                {data && data.totalPages > 1 && (
                   <div className="mt-6 flex items-center justify-between border-t border-border pt-6" data-testid="pagination-customers">
                     <p className="text-xs text-muted-foreground">
-                      Página <span className="font-semibold text-foreground">{data.page}</span> de <span className="font-semibold text-foreground">{data.total_pages}</span>
+                      Página <span className="font-semibold text-foreground">{data.page}</span> de <span className="font-semibold text-foreground">{data.totalPages}</span>
                     </p>
                     <div className="flex items-center gap-2">
                       <button
@@ -238,7 +238,7 @@ export default function Customers() {
                       </button>
                       <button
                         type="button"
-                        disabled={page === data.total_pages}
+                        disabled={page === data.totalPages}
                         onClick={() => setPage((p) => p + 1)}
                         className="flex h-8 items-center gap-1 rounded-md border border-border bg-card px-3 text-xs font-semibold text-foreground shadow-2xs transition-colors hover:bg-muted disabled:opacity-50"
                         data-testid="button-next-page"

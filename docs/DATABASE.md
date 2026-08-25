@@ -1,3 +1,8 @@
+## Concorrência de integração
+
+UPSERTs da Fase 2 usam `ON CONFLICT DO UPDATE` condicionado a uma versão de origem estritamente
+mais nova. `integration_logs.correlation_id` permite localizar cada lote sem armazenar credenciais.
+
 # Banco de dados
 
 ## Entidades da Fase 1

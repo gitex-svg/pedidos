@@ -2,7 +2,7 @@ import { db, products } from "@workspace/db";
 import { and, asc, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 
 export type ProductListInput = {
-  page: number; limit: number; search?: string; active?: boolean;
+  page: number; pageSize: number; search?: string; active?: boolean;
   groupCode?: string; typeCode?: string; productCode?: string; referenceCode?: string;
   code?: string; description?: string; collection?: string; packaging?: string; width?: string; color?: string;
   sort: "description" | "erpId" | "productCode" | "updatedAt"; order: "asc" | "desc";
@@ -28,11 +28,11 @@ export class ProductService {
     const direction = input.order === "desc" ? desc : asc;
     const [items, totals] = await Promise.all([
       db.select().from(products).where(where).orderBy(direction(columns[input.sort]), asc(products.id))
-        .limit(input.limit).offset((input.page - 1) * input.limit),
+        .limit(input.pageSize).offset((input.page - 1) * input.pageSize),
       db.select({ count: count() }).from(products).where(where),
     ]);
     const total = totals[0]?.count ?? 0;
-    return { items, page: input.page, limit: input.limit, total, totalPages: Math.ceil(total / input.limit) };
+    return { items, page: input.page, pageSize: input.pageSize, totalItems: total, totalPages: Math.ceil(total / input.pageSize) };
   }
 
   async findByErpIdentity(identity: { groupCode: string; typeCode: string; productCode: string; referenceCode: string }) {

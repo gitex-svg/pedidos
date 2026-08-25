@@ -34,6 +34,8 @@ export const erpItemSchemas = {
 
 type Counters = { received: number; created: number; updated: number; ignored: number; errors: number };
 type Outcome = "created" | "updated" | "ignored";
+type Result = { index: number; external_id?: string; status: Outcome | "error"; reason?: string; message?: string };
+class RepresentativeNotFoundError extends Error {}
 
 export function isStale(current: Date | null, incoming: Date) {
   return current !== null && incoming.getTime() <= current.getTime();
@@ -56,7 +58,7 @@ const handlers: Record<keyof typeof erpItemSchemas, (item: any) => Promise<Outco
   customers: async item => {
     const [representative] = await db.select({ id: representatives.id }).from(representatives)
       .where(eq(representatives.erpCode, item.representative_erp_code)).limit(1);
-    if (!representative) throw new Error(`representative_erp_code não encontrado: ${item.representative_erp_code}`);
+    if (!representative) throw new RepresentativeNotFoundError();
     const values = {
       representativeId: representative.id, corporateName: item.corporate_name, tradeName: item.trade_name ?? null,
       cnpjCpf: item.cnpj_cpf ?? null, city: item.city ?? null, state: item.state?.toUpperCase() ?? null,
@@ -121,27 +123,37 @@ for (const entity of Object.keys(erpItemSchemas) as (keyof typeof erpItemSchemas
     const correlationId = batch.data.correlation_id ?? randomUUID();
     const counters: Counters = { received: batch.data.items.length, created: 0, updated: 0, ignored: 0, errors: 0 };
     const errors: { index: number; external_id?: string; error: string }[] = [];
+    const results: Result[] = [];
     for (const [index, raw] of batch.data.items.entries()) {
       const parsed = erpItemSchemas[entity].safeParse(raw);
       const externalId = raw && typeof raw === "object"
         ? String(("erp_id" in raw ? raw.erp_id : "erp_code" in raw ? raw.erp_code : "") ?? "") : "";
       if (!parsed.success) {
         counters.errors++;
-        errors.push({ index, ...(externalId && { external_id: externalId }), error: z.prettifyError(parsed.error) });
+        const error = z.prettifyError(parsed.error);
+        errors.push({ index, ...(externalId && { external_id: externalId }), error });
+        results.push({ index, ...(externalId && { external_id: externalId }), status: "error", reason: "VALIDATION_ERROR", message: "Item inválido." });
         continue;
       }
       try {
         const outcome = await handlers[entity](parsed.data);
         counters[outcome]++;
+        results.push({
+          index, ...(externalId && { external_id: externalId }), status: outcome,
+          ...(outcome === "ignored" && { reason: "STALE_SOURCE_VERSION" }),
+        });
       } catch (error) {
         counters.errors++;
-        const message = error instanceof Error
-          && error.message.startsWith("representative_erp_code não encontrado:")
-          ? error.message
-          : "Erro ao persistir item.";
+        const missingRepresentative = error instanceof RepresentativeNotFoundError;
+        const message = missingRepresentative ? "Representante ERP não encontrado." : "Erro ao persistir item.";
         errors.push({
           index, ...(externalId && { external_id: externalId }),
           error: message,
+        });
+        results.push({
+          index, ...(externalId && { external_id: externalId }), status: "error",
+          reason: missingRepresentative ? "REPRESENTATIVE_NOT_FOUND" : "PERSISTENCE_ERROR",
+          message,
         });
       }
     }
@@ -151,7 +163,7 @@ for (const entity of Object.keys(erpItemSchemas) as (keyof typeof erpItemSchemas
       ...counters, errorDetails: errors.length ? errors : null,
     });
     return res.status(counters.errors ? 207 : 200).json({
-      correlation_id: correlationId, ...counters, item_errors: errors,
+      correlation_id: correlationId, ...counters, item_errors: errors, results,
     });
   });
 }

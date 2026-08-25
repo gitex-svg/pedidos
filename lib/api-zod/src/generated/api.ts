@@ -77,8 +77,7 @@ export const AdminHealthCheckResponse = zod.object({
 
 export const listCustomersQueryPageDefault = 1;
 
-export const listCustomersQueryLimitDefault = 20;
-export const listCustomersQueryLimitMax = 100;
+
 
 export const listCustomersQuerySearchMax = 200;
 
@@ -88,7 +87,8 @@ export const listCustomersQueryOrderDefault = `asc`;
 
 export const ListCustomersQueryParams = zod.object({
   "page": zod.coerce.number().int().min(1).default(listCustomersQueryPageDefault),
-  "limit": zod.coerce.number().int().min(1).max(listCustomersQueryLimitMax).default(listCustomersQueryLimitDefault),
+  "pageSize": zod.coerce.number().int().min(1).optional().describe('Tamanho efetivo padrão é 20; valores acima de 100 são limitados a 100. Quando informado, tem prioridade sobre limit.'),
+  "limit": zod.coerce.number().int().min(1).optional().describe('Usado somente quando pageSize não é informado; na ausência de ambos o tamanho efetivo é 20.'),
   "search": zod.coerce.string().max(listCustomersQuerySearchMax).optional(),
   "q": zod.coerce.string().max(listCustomersQueryQMax).optional(),
   "active": zod.coerce.boolean().optional().describe('Disponível a administradores; representantes sempre veem ativos'),
@@ -98,9 +98,9 @@ export const ListCustomersQueryParams = zod.object({
 
 export const ListCustomersResponse = zod.object({
   "page": zod.int(),
-  "limit": zod.int(),
-  "total": zod.int(),
-  "total_pages": zod.int()
+  "pageSize": zod.int(),
+  "totalItems": zod.int(),
+  "totalPages": zod.int()
 }).and(zod.object({
   "items": zod.array(zod.object({
   "id": zod.uuid(),
@@ -118,8 +118,7 @@ export const ListCustomersResponse = zod.object({
 
 export const listProductsQueryPageDefault = 1;
 
-export const listProductsQueryLimitDefault = 20;
-export const listProductsQueryLimitMax = 100;
+
 
 export const listProductsQuerySearchMax = 200;
 
@@ -141,7 +140,8 @@ export const listProductsQueryOrderDefault = `asc`;
 
 export const ListProductsQueryParams = zod.object({
   "page": zod.coerce.number().int().min(1).default(listProductsQueryPageDefault),
-  "limit": zod.coerce.number().int().min(1).max(listProductsQueryLimitMax).default(listProductsQueryLimitDefault),
+  "pageSize": zod.coerce.number().int().min(1).optional().describe('Tamanho efetivo padrão é 20; valores acima de 100 são limitados a 100. Quando informado, tem prioridade sobre limit.'),
+  "limit": zod.coerce.number().int().min(1).optional().describe('Usado somente quando pageSize não é informado; na ausência de ambos o tamanho efetivo é 20.'),
   "search": zod.coerce.string().max(listProductsQuerySearchMax).optional(),
   "q": zod.coerce.string().max(listProductsQueryQMax).optional(),
   "active": zod.coerce.boolean().optional().describe('Disponível a administradores; representantes sempre veem ativos'),
@@ -171,9 +171,9 @@ export const listProductsResponseTwoItemsItemReferenceCodeMax = 8;
 
 export const ListProductsResponse = zod.object({
   "page": zod.int(),
-  "limit": zod.int(),
-  "total": zod.int(),
-  "total_pages": zod.int()
+  "pageSize": zod.int(),
+  "totalItems": zod.int(),
+  "totalPages": zod.int()
 }).and(zod.object({
   "items": zod.array(zod.object({
   "id": zod.uuid(),
@@ -195,8 +195,7 @@ export const ListProductsResponse = zod.object({
 
 export const listPaymentTermsQueryPageDefault = 1;
 
-export const listPaymentTermsQueryLimitDefault = 20;
-export const listPaymentTermsQueryLimitMax = 100;
+
 
 export const listPaymentTermsQuerySearchMax = 200;
 
@@ -204,7 +203,8 @@ export const listPaymentTermsQueryOrderDefault = `asc`;
 
 export const ListPaymentTermsQueryParams = zod.object({
   "page": zod.coerce.number().int().min(1).default(listPaymentTermsQueryPageDefault),
-  "limit": zod.coerce.number().int().min(1).max(listPaymentTermsQueryLimitMax).default(listPaymentTermsQueryLimitDefault),
+  "pageSize": zod.coerce.number().int().min(1).optional().describe('Tamanho efetivo padrão é 20; valores acima de 100 são limitados a 100. Quando informado, tem prioridade sobre limit.'),
+  "limit": zod.coerce.number().int().min(1).optional().describe('Usado somente quando pageSize não é informado; na ausência de ambos o tamanho efetivo é 20.'),
   "search": zod.coerce.string().max(listPaymentTermsQuerySearchMax).optional(),
   "active": zod.coerce.boolean().optional().describe('Disponível a administradores; representantes sempre veem ativos'),
   "order": zod.enum(['asc', 'desc']).default(listPaymentTermsQueryOrderDefault)
@@ -212,9 +212,9 @@ export const ListPaymentTermsQueryParams = zod.object({
 
 export const ListPaymentTermsResponse = zod.object({
   "page": zod.int(),
-  "limit": zod.int(),
-  "total": zod.int(),
-  "total_pages": zod.int()
+  "pageSize": zod.int(),
+  "totalItems": zod.int(),
+  "totalPages": zod.int()
 }).and(zod.object({
   "items": zod.array(zod.object({
   "id": zod.uuid(),
@@ -227,8 +227,7 @@ export const ListPaymentTermsResponse = zod.object({
 
 export const listCarriersQueryPageDefault = 1;
 
-export const listCarriersQueryLimitDefault = 20;
-export const listCarriersQueryLimitMax = 100;
+
 
 export const listCarriersQuerySearchMax = 200;
 
@@ -236,7 +235,8 @@ export const listCarriersQueryOrderDefault = `asc`;
 
 export const ListCarriersQueryParams = zod.object({
   "page": zod.coerce.number().int().min(1).default(listCarriersQueryPageDefault),
-  "limit": zod.coerce.number().int().min(1).max(listCarriersQueryLimitMax).default(listCarriersQueryLimitDefault),
+  "pageSize": zod.coerce.number().int().min(1).optional().describe('Tamanho efetivo padrão é 20; valores acima de 100 são limitados a 100. Quando informado, tem prioridade sobre limit.'),
+  "limit": zod.coerce.number().int().min(1).optional().describe('Usado somente quando pageSize não é informado; na ausência de ambos o tamanho efetivo é 20.'),
   "search": zod.coerce.string().max(listCarriersQuerySearchMax).optional(),
   "active": zod.coerce.boolean().optional().describe('Disponível a administradores; representantes sempre veem ativos'),
   "order": zod.enum(['asc', 'desc']).default(listCarriersQueryOrderDefault)
@@ -244,9 +244,9 @@ export const ListCarriersQueryParams = zod.object({
 
 export const ListCarriersResponse = zod.object({
   "page": zod.int(),
-  "limit": zod.int(),
-  "total": zod.int(),
-  "total_pages": zod.int()
+  "pageSize": zod.int(),
+  "totalItems": zod.int(),
+  "totalPages": zod.int()
 }).and(zod.object({
   "items": zod.array(zod.object({
   "id": zod.uuid(),
@@ -285,6 +285,13 @@ export const SyncRepresentativesResponse = zod.object({
   "index": zod.int(),
   "external_id": zod.string().optional(),
   "error": zod.string()
+})),
+  "results": zod.array(zod.object({
+  "index": zod.int(),
+  "external_id": zod.string().optional(),
+  "status": zod.enum(['created', 'updated', 'ignored', 'error']),
+  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional(),
+  "message": zod.string().optional()
 }))
 })
 
@@ -321,6 +328,13 @@ export const SyncCustomersResponse = zod.object({
   "index": zod.int(),
   "external_id": zod.string().optional(),
   "error": zod.string()
+})),
+  "results": zod.array(zod.object({
+  "index": zod.int(),
+  "external_id": zod.string().optional(),
+  "status": zod.enum(['created', 'updated', 'ignored', 'error']),
+  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional(),
+  "message": zod.string().optional()
 }))
 })
 
@@ -373,6 +387,13 @@ export const SyncProductsResponse = zod.object({
   "index": zod.int(),
   "external_id": zod.string().optional(),
   "error": zod.string()
+})),
+  "results": zod.array(zod.object({
+  "index": zod.int(),
+  "external_id": zod.string().optional(),
+  "status": zod.enum(['created', 'updated', 'ignored', 'error']),
+  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional(),
+  "message": zod.string().optional()
 }))
 })
 
@@ -405,6 +426,13 @@ export const SyncPaymentTermsResponse = zod.object({
   "index": zod.int(),
   "external_id": zod.string().optional(),
   "error": zod.string()
+})),
+  "results": zod.array(zod.object({
+  "index": zod.int(),
+  "external_id": zod.string().optional(),
+  "status": zod.enum(['created', 'updated', 'ignored', 'error']),
+  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional(),
+  "message": zod.string().optional()
 }))
 })
 
@@ -437,6 +465,13 @@ export const SyncCarriersResponse = zod.object({
   "index": zod.int(),
   "external_id": zod.string().optional(),
   "error": zod.string()
+})),
+  "results": zod.array(zod.object({
+  "index": zod.int(),
+  "external_id": zod.string().optional(),
+  "status": zod.enum(['created', 'updated', 'ignored', 'error']),
+  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional(),
+  "message": zod.string().optional()
 }))
 })
 

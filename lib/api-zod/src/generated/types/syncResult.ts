@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { SyncResultItemErrorsItem } from './syncResultItemErrorsItem';
+import type { SyncResultResultsItem } from './syncResultResultsItem';
 
 export interface SyncResult {
   correlation_id: string;
@@ -15,4 +16,5 @@ export interface SyncResult {
   ignored: number;
   errors: number;
   item_errors: SyncResultItemErrorsItem[];
+  results: SyncResultResultsItem[];
 }

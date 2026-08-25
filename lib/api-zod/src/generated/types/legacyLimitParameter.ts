@@ -6,4 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type LimitParameter = number;
+/**
+ * Usado somente quando pageSize não é informado; na ausência de ambos o tamanho efetivo é 20.
+ * @deprecated
+ */
+export type LegacyLimitParameter = number;

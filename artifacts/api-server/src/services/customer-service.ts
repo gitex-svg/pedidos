@@ -2,7 +2,7 @@ import { customers, db } from "@workspace/db";
 import { and, asc, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 
 export type CustomerListInput = {
-  page: number; limit: number; search?: string; active?: boolean;
+  page: number; pageSize: number; search?: string; active?: boolean;
   sort: "name" | "erpCode" | "city" | "updatedAt"; order: "asc" | "desc";
   representativeId?: string;
 };
@@ -24,11 +24,11 @@ export class CustomerService {
     const direction = input.order === "desc" ? desc : asc;
     const [items, totals] = await Promise.all([
       db.select().from(customers).where(where).orderBy(direction(columns[input.sort]), asc(customers.id))
-        .limit(input.limit).offset((input.page - 1) * input.limit),
+        .limit(input.pageSize).offset((input.page - 1) * input.pageSize),
       db.select({ count: count() }).from(customers).where(where),
     ]);
     const total = totals[0]?.count ?? 0;
-    return { items, page: input.page, limit: input.limit, total, totalPages: Math.ceil(total / input.limit) };
+    return { items, page: input.page, pageSize: input.pageSize, totalItems: total, totalPages: Math.ceil(total / input.pageSize) };
   }
 
   async findAccessibleById(customerId: string, representativeId: string) {

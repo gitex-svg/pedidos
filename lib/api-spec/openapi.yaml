@@ -126,7 +126,8 @@ paths:
       security: [{ sessionCookie: [] }]
       parameters:
         - $ref: "#/components/parameters/Page"
-        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/LegacyLimit"
         - $ref: "#/components/parameters/Search"
         - { name: q, in: query, schema: { type: string, maxLength: 200 } }
         - $ref: "#/components/parameters/Active"
@@ -143,7 +144,8 @@ paths:
       security: [{ sessionCookie: [] }]
       parameters:
         - $ref: "#/components/parameters/Page"
-        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/LegacyLimit"
         - $ref: "#/components/parameters/Search"
         - { name: q, in: query, schema: { type: string, maxLength: 200 } }
         - $ref: "#/components/parameters/Active"
@@ -169,7 +171,8 @@ paths:
       security: [{ sessionCookie: [] }]
       parameters:
         - $ref: "#/components/parameters/Page"
-        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/LegacyLimit"
         - $ref: "#/components/parameters/Search"
         - $ref: "#/components/parameters/Active"
         - $ref: "#/components/parameters/Order"
@@ -182,7 +185,8 @@ paths:
       security: [{ sessionCookie: [] }]
       parameters:
         - $ref: "#/components/parameters/Page"
-        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/PageSize"
+        - $ref: "#/components/parameters/LegacyLimit"
         - $ref: "#/components/parameters/Search"
         - $ref: "#/components/parameters/Active"
         - $ref: "#/components/parameters/Order"
@@ -229,7 +233,8 @@ components:
     erpApiKey: { type: http, scheme: bearer }
   parameters:
     Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
-    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    PageSize: { name: pageSize, in: query, description: "Tamanho efetivo padrão é 20; valores acima de 100 são limitados a 100. Quando informado, tem prioridade sobre limit.", schema: { type: integer, minimum: 1 } }
+    LegacyLimit: { name: limit, in: query, deprecated: true, description: "Usado somente quando pageSize não é informado; na ausência de ambos o tamanho efetivo é 20.", schema: { type: integer, minimum: 1 } }
     Search: { name: search, in: query, schema: { type: string, maxLength: 200 } }
     Active: { name: active, in: query, description: Disponível a administradores; representantes sempre veem ativos, schema: { type: boolean } }
     Order: { name: order, in: query, schema: { type: string, enum: [asc, desc], default: asc } }
@@ -289,8 +294,8 @@ components:
       required: [error]
     PageMeta:
       type: object
-      properties: { page: { type: integer }, limit: { type: integer }, total: { type: integer }, total_pages: { type: integer } }
-      required: [page, limit, total, total_pages]
+      properties: { page: { type: integer }, pageSize: { type: integer }, totalItems: { type: integer }, totalPages: { type: integer } }
+      required: [page, pageSize, totalItems, totalPages]
     Customer:
       type: object
       properties: { id: { type: string, format: uuid }, erp_code: { type: string }, representative_id: { type: string, format: uuid }, cnpj_cpf: { type: [string, "null"] }, corporate_name: { type: string }, trade_name: { type: [string, "null"] }, city: { type: [string, "null"] }, state: { type: [string, "null"] }, active: { type: boolean } }
@@ -335,4 +340,15 @@ components:
         ignored: { type: integer }
         errors: { type: integer }
         item_errors: { type: array, items: { type: object, properties: { index: { type: integer }, external_id: { type: string }, error: { type: string } }, required: [index, error] } }
-      required: [correlation_id, received, created, updated, ignored, errors, item_errors]
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              index: { type: integer }
+              external_id: { type: string }
+              status: { type: string, enum: [created, updated, ignored, error] }
+              reason: { type: string, enum: [STALE_SOURCE_VERSION, REPRESENTATIVE_NOT_FOUND, VALIDATION_ERROR, PERSISTENCE_ERROR] }
+              message: { type: string }
+            required: [index, status]
+      required: [correlation_id, received, created, updated, ignored, errors, item_errors, results]

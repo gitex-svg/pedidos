@@ -51,9 +51,9 @@ export interface ErrorResponse {
 
 export interface PageMeta {
   page: number;
-  limit: number;
-  total: number;
-  total_pages: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
 }
 
 export interface Customer {
@@ -236,6 +236,34 @@ export type SyncResultItemErrorsItem = {
   error: string;
 };
 
+export type SyncResultResultsItemStatus = typeof SyncResultResultsItemStatus[keyof typeof SyncResultResultsItemStatus];
+
+
+export const SyncResultResultsItemStatus = {
+  created: 'created',
+  updated: 'updated',
+  ignored: 'ignored',
+  error: 'error',
+} as const;
+
+export type SyncResultResultsItemReason = typeof SyncResultResultsItemReason[keyof typeof SyncResultResultsItemReason];
+
+
+export const SyncResultResultsItemReason = {
+  STALE_SOURCE_VERSION: 'STALE_SOURCE_VERSION',
+  REPRESENTATIVE_NOT_FOUND: 'REPRESENTATIVE_NOT_FOUND',
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  PERSISTENCE_ERROR: 'PERSISTENCE_ERROR',
+} as const;
+
+export type SyncResultResultsItem = {
+  index: number;
+  external_id?: string;
+  status: SyncResultResultsItemStatus;
+  reason?: SyncResultResultsItemReason;
+  message?: string;
+};
+
 export interface SyncResult {
   correlation_id: string;
   received: number;
@@ -244,6 +272,7 @@ export interface SyncResult {
   ignored: number;
   errors: number;
   item_errors: SyncResultItemErrorsItem[];
+  results: SyncResultResultsItem[];
 }
 
 /**
@@ -253,7 +282,16 @@ export type SyncResultResponse = SyncResult;
 
 export type PageParameter = number;
 
-export type LimitParameter = number;
+/**
+ * Tamanho efetivo padrão é 20; valores acima de 100 são limitados a 100. Quando informado, tem prioridade sobre limit.
+ */
+export type PageSizeParameter = number;
+
+/**
+ * Usado somente quando pageSize não é informado; na ausência de ambos o tamanho efetivo é 20.
+ * @deprecated
+ */
+export type LegacyLimitParameter = number;
 
 export type SearchParameter = string;
 
@@ -276,10 +314,15 @@ export type ListCustomersParams = {
  */
 page?: PageParameter;
 /**
+ * Tamanho efetivo padrão é 20; valores acima de 100 são limitados a 100. Quando informado, tem prioridade sobre limit.
  * @minimum 1
- * @maximum 100
  */
-limit?: LimitParameter;
+pageSize?: PageSizeParameter;
+/**
+ * Usado somente quando pageSize não é informado; na ausência de ambos o tamanho efetivo é 20.
+ * @minimum 1
+ */
+limit?: LegacyLimitParameter;
 /**
  * @maxLength 200
  */
@@ -312,10 +355,15 @@ export type ListProductsParams = {
  */
 page?: PageParameter;
 /**
+ * Tamanho efetivo padrão é 20; valores acima de 100 são limitados a 100. Quando informado, tem prioridade sobre limit.
  * @minimum 1
- * @maximum 100
  */
-limit?: LimitParameter;
+pageSize?: PageSizeParameter;
+/**
+ * Usado somente quando pageSize não é informado; na ausência de ambos o tamanho efetivo é 20.
+ * @minimum 1
+ */
+limit?: LegacyLimitParameter;
 /**
  * @maxLength 200
  */
@@ -374,10 +422,15 @@ export type ListPaymentTermsParams = {
  */
 page?: PageParameter;
 /**
+ * Tamanho efetivo padrão é 20; valores acima de 100 são limitados a 100. Quando informado, tem prioridade sobre limit.
  * @minimum 1
- * @maximum 100
  */
-limit?: LimitParameter;
+pageSize?: PageSizeParameter;
+/**
+ * Usado somente quando pageSize não é informado; na ausência de ambos o tamanho efetivo é 20.
+ * @minimum 1
+ */
+limit?: LegacyLimitParameter;
 /**
  * @maxLength 200
  */
@@ -395,10 +448,15 @@ export type ListCarriersParams = {
  */
 page?: PageParameter;
 /**
+ * Tamanho efetivo padrão é 20; valores acima de 100 são limitados a 100. Quando informado, tem prioridade sobre limit.
  * @minimum 1
- * @maximum 100
  */
-limit?: LimitParameter;
+pageSize?: PageSizeParameter;
+/**
+ * Usado somente quando pageSize não é informado; na ausência de ambos o tamanho efetivo é 20.
+ * @minimum 1
+ */
+limit?: LegacyLimitParameter;
 /**
  * @maxLength 200
  */
