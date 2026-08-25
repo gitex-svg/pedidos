@@ -23,7 +23,7 @@ export function AppShell({ user, children }: AppShellProps) {
 
   const handleLogout = () => {
     logout.mutate(undefined, {
-      onSuccess: () => {
+      onSettled: () => {
         queryClient.removeQueries({ queryKey: getGetCurrentUserQueryKey() });
         queryClient.removeQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         setLocation('/');

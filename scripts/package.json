@@ -4,10 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "create-admin": "tsx ./src/create-admin.ts",
     "hello": "tsx ./src/hello.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@workspace/db": "workspace:*",
+    "better-auth": "^1.4.9",
+    "drizzle-orm": "catalog:",
     "@types/node": "catalog:",
     "tsx": "catalog:"
   }

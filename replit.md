@@ -1,12 +1,14 @@
-# [Project name]
+# Pedidos Fitas Gitex
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Sistema web responsivo para representantes comerciais digitarem e acompanharem pedidos e orçamentos.
 
 ## Run & Operate
 
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
+- `pnpm --filter @workspace/api-server run test` — testes de autenticação/autorização
+- `pnpm run create-admin` — cria ou redefine o primeiro ADMIN usando ADMIN_EMAIL e ADMIN_PASSWORD
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
@@ -22,11 +24,18 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `lib/api-spec/openapi.yaml` — contrato da API
+- `lib/db/src/schema` e `lib/db/drizzle` — schema e migrations
+- `artifacts/api-server/src` — autenticação, autorização e serviços
+- `artifacts/pedidos-gitex/src` — login e dashboard
+- `docs/` — decisões técnicas e regras comerciais
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Sincronização ERP é fato técnico, separado de status comercial.
+- Sessões são opacas e somente o hash do token é persistido.
+- Identidade e escopo do representante sempre são derivados da sessão no backend.
+- Regras financeiras serão centralizadas em services e usarão decimais.
 
 ## Product
 

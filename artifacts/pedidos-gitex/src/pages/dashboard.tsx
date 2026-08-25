@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, ArrowUpRight, CheckCircle2, CircleDashed, FileCheck2, FileText, PackageCheck, RefreshCw, Send, XCircle } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useGetCurrentUser, getGetCurrentUserQueryKey, useGetDashboardSummary, getGetDashboardSummaryQueryKey, useHealthCheck, getHealthCheckQueryKey } from '@workspace/api-client-react';
@@ -134,13 +135,18 @@ function DashboardContent({ summary }: { summary: DashboardSummary }) {
 
 export default function Dashboard() {
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const currentUser = useGetCurrentUser({ query: { retry: false, queryKey: getGetCurrentUserQueryKey() } });
   const summary = useGetDashboardSummary({ query: { enabled: !!currentUser.data, retry: false, queryKey: getGetDashboardSummaryQueryKey() } });
   const health = useHealthCheck({ query: { retry: false, staleTime: 30000, queryKey: getHealthCheckQueryKey() } });
 
   useEffect(() => {
-    if (currentUser.isError && !currentUser.isFetching) setLocation('/');
-  }, [currentUser.isError, currentUser.isFetching, setLocation]);
+    if (currentUser.isError && !currentUser.isFetching) {
+      queryClient.removeQueries({ queryKey: getGetCurrentUserQueryKey() });
+      queryClient.removeQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+      setLocation('/');
+    }
+  }, [currentUser.isError, currentUser.isFetching, queryClient, setLocation]);
 
   if (currentUser.isLoading || !currentUser.data) {
     return (

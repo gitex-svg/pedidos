@@ -225,6 +225,9 @@ importers:
       thread-stream:
         specifier: 3.1.0
         version: 3.1.0
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.1
 
   artifacts/mockup-sandbox:
     devDependencies:
@@ -649,6 +652,15 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 25.9.5
+      '@workspace/db':
+        specifier: workspace:*
+        version: link:../lib/db
+      better-auth:
+        specifier: ^1.4.9
+        version: 1.7.1(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@types/pg@8.20.0)(kysely@0.29.5)(pg@8.22.0))(pg@8.22.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.2(@types/pg@8.20.0)(kysely@0.29.5)(pg@8.22.0)
       tsx:
         specifier: 'catalog:'
         version: 4.23.1

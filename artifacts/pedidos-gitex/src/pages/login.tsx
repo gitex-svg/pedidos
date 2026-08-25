@@ -21,8 +21,8 @@ export default function Login() {
   const health = useHealthCheck({ query: { retry: false, staleTime: 30000, queryKey: getHealthCheckQueryKey() } });
 
   useEffect(() => {
-    if (currentUser.data) setLocation('/dashboard');
-  }, [currentUser.data, setLocation]);
+    if (currentUser.isSuccess && currentUser.data) setLocation('/dashboard');
+  }, [currentUser.isSuccess, currentUser.data, setLocation]);
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

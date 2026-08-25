@@ -2,18 +2,15 @@ import { Router, type IRouter, type Request } from "express";
 import { z } from "zod";
 import { db, representatives } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { authenticate, getUserFromToken, revokeToken, SESSION_COOKIE } from "../auth/session";
+import { authenticate, revokeToken, SESSION_COOKIE } from "../auth/session";
 import { publicUser } from "../auth/format";
+import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(8) });
 
 function tokenFromRequest(req: Request) {
   return req.cookies?.[SESSION_COOKIE] as string | undefined;
-}
-
-async function currentUser(req: Request) {
-  return getUserFromToken(tokenFromRequest(req));
 }
 
 router.post("/v1/auth/login", async (req, res) => {
@@ -38,9 +35,8 @@ router.post("/v1/auth/logout", async (req, res) => {
   return res.status(204).send();
 });
 
-router.get("/v1/auth/me", async (req, res) => {
-  const user = await currentUser(req);
-  if (!user) return res.status(401).json({ error: "Não autenticado." });
+router.get("/v1/auth/me", requireAuth, async (req, res) => {
+  const user = req.authUser!;
   const representative = await db.select().from(representatives).where(eq(representatives.userId, user.id)).limit(1);
   return res.json(publicUser(user, representative[0]?.id ?? null));
 });

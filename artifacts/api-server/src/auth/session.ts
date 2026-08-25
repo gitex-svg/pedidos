@@ -18,6 +18,8 @@ export async function authenticate(email: string, password: string) {
   }
 
   await db.update(users).set({ lastLoginAt: new Date(), updatedAt: new Date() }).where(eq(users.id, user.id));
+  // A new login rotates the session and invalidates any previously issued token.
+  await db.delete(sessions).where(eq(sessions.userId, user.id));
   const rawToken = randomBytes(32).toString("base64url");
   await db.insert(sessions).values({
     userId: user.id,
