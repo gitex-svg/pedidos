@@ -1,0 +1,1 @@
+-- No-op: records the manual Fase 2 migration before the generated schema snapshot.

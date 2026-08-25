@@ -128,6 +128,7 @@ paths:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/Limit"
         - $ref: "#/components/parameters/Search"
+        - { name: q, in: query, schema: { type: string, maxLength: 200 } }
         - $ref: "#/components/parameters/Active"
         - { name: sort, in: query, schema: { type: string, enum: [name, erpCode, city, updatedAt] } }
         - $ref: "#/components/parameters/Order"
@@ -144,10 +145,19 @@ paths:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/Limit"
         - $ref: "#/components/parameters/Search"
+        - { name: q, in: query, schema: { type: string, maxLength: 200 } }
         - $ref: "#/components/parameters/Active"
-        - { name: groupCode, in: query, schema: { type: string } }
-        - { name: typeCode, in: query, schema: { type: string } }
-        - { name: sort, in: query, schema: { type: string, enum: [description, erp_id, product_code, updated_at] } }
+        - { name: group_code, in: query, schema: { type: string, minLength: 2, maxLength: 2 } }
+        - { name: type_code, in: query, schema: { type: string, minLength: 2, maxLength: 2 } }
+        - { name: product_code, in: query, schema: { type: string, minLength: 4, maxLength: 4 } }
+        - { name: reference_code, in: query, schema: { type: string, minLength: 8, maxLength: 8 } }
+        - { name: code, in: query, schema: { type: string } }
+        - { name: description, in: query, schema: { type: string } }
+        - { name: collection, in: query, schema: { type: string } }
+        - { name: packaging, in: query, schema: { type: string } }
+        - { name: width, in: query, schema: { type: string } }
+        - { name: color, in: query, schema: { type: string } }
+        - { name: sort, in: query, schema: { type: string, enum: [description, erpId, productCode, updatedAt] } }
         - $ref: "#/components/parameters/Order"
       responses:
         "200": { description: Produtos paginados, content: { application/json: { schema: { $ref: "#/components/schemas/ProductPage" } } } }
@@ -279,11 +289,11 @@ components:
       required: [error]
     PageMeta:
       type: object
-      properties: { page: { type: integer }, limit: { type: integer }, total: { type: integer }, totalPages: { type: integer } }
-      required: [page, limit, total, totalPages]
+      properties: { page: { type: integer }, limit: { type: integer }, total: { type: integer }, total_pages: { type: integer } }
+      required: [page, limit, total, total_pages]
     Customer:
       type: object
-      properties: { id: { type: string, format: uuid }, erp_code: { type: string }, representative_id: { type: string, format: uuid }, cnpj_cpf: { type: [string, "null"] }, corporate_name: { type: string }, trade_name: { type: [string, "null"] }, active: { type: boolean } }
+      properties: { id: { type: string, format: uuid }, erp_code: { type: string }, representative_id: { type: string, format: uuid }, cnpj_cpf: { type: [string, "null"] }, corporate_name: { type: string }, trade_name: { type: [string, "null"] }, city: { type: [string, "null"] }, state: { type: [string, "null"] }, active: { type: boolean } }
       required: [id, erp_code, representative_id, corporate_name, active]
     Product:
       type: object
@@ -291,12 +301,12 @@ components:
       required: [id, erp_id, code, description, group_code, type_code, product_code, reference_code, active]
     PaymentTerm:
       type: object
-      properties: { id: { type: string, format: uuid }, erpCode: { type: string }, description: { type: string }, active: { type: boolean } }
-      required: [id, erpCode, description, active]
+      properties: { id: { type: string, format: uuid }, erp_code: { type: string }, description: { type: string }, active: { type: boolean } }
+      required: [id, erp_code, description, active]
     Carrier:
       type: object
-      properties: { id: { type: string, format: uuid }, erpCode: { type: string }, name: { type: string }, active: { type: boolean } }
-      required: [id, erpCode, name, active]
+      properties: { id: { type: string, format: uuid }, erp_code: { type: string }, name: { type: string }, active: { type: boolean } }
+      required: [id, erp_code, name, active]
     CustomerPage: { allOf: [{ $ref: "#/components/schemas/PageMeta" }, { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/Customer" } } }, required: [items] }] }
     ProductPage: { allOf: [{ $ref: "#/components/schemas/PageMeta" }, { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/Product" } } }, required: [items] }] }
     PaymentTermPage: { allOf: [{ $ref: "#/components/schemas/PageMeta" }, { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/PaymentTerm" } } }, required: [items] }] }
@@ -307,7 +317,7 @@ components:
       required: [source_updated_at]
     RepresentativeSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_code: { type: string }, name: { type: string }, email: { type: [string, "null"], format: email } }, required: [erp_code, name] }] }
     CustomerSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_code: { type: string }, representative_erp_code: { type: string }, corporate_name: { type: string }, trade_name: { type: [string, "null"] }, cnpj_cpf: { type: [string, "null"] }, city: { type: [string, "null"] }, state: { type: [string, "null"] } }, required: [erp_code, representative_erp_code, corporate_name] }] }
-    ProductSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_id: { type: string }, code: { type: string }, description: { type: string }, group_code: { type: string, maxLength: 2 }, type_code: { type: string, maxLength: 2 }, product_code: { type: string, maxLength: 4 }, reference_code: { type: string, maxLength: 8 } }, required: [erp_id, code, description, group_code, type_code, product_code, reference_code] }] }
+    ProductSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_id: { type: string }, code: { type: string }, description: { type: string }, collection: { type: [string, "null"] }, packaging: { type: [string, "null"] }, width: { type: [string, "null"] }, color: { type: [string, "null"] }, group_code: { type: string, minLength: 2, maxLength: 2 }, type_code: { type: string, minLength: 2, maxLength: 2 }, product_code: { type: string, minLength: 4, maxLength: 4 }, reference_code: { type: string, minLength: 8, maxLength: 8 } }, required: [erp_id, code, description, group_code, type_code, product_code, reference_code] }] }
     PaymentTermSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_code: { type: string }, description: { type: string }, installments: { type: [integer, "null"] } }, required: [erp_code, description] }] }
     CarrierSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_code: { type: string }, name: { type: string }, tax_id: { type: [string, "null"] } }, required: [erp_code, name] }] }
     RepresentativeSyncBatch: { type: object, properties: { correlation_id: { type: string, format: uuid }, items: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/RepresentativeSyncItem" } } }, required: [items] }

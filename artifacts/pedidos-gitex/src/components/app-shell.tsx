@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
-import { BarChart3, LogOut, Menu, PanelLeftClose, X } from 'lucide-react';
+import { BarChart3, LogOut, Menu, PanelLeftClose, X, Users, Package } from 'lucide-react';
 import { getGetCurrentUserQueryKey, getGetDashboardSummaryQueryKey, useLogout } from '@workspace/api-client-react';
 import type { AuthUser } from '@workspace/api-client-react';
 import { GitexMark } from '@/components/gitex-mark';
@@ -17,7 +17,7 @@ function initials(email: string) {
 
 export function AppShell({ user, children }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const logout = useLogout();
 
@@ -65,12 +65,44 @@ export function AppShell({ user, children }: AppShellProps) {
           <Link
             href="/dashboard"
             data-testid="link-dashboard"
-            className="group flex items-center gap-3 rounded-lg bg-sidebar-accent px-3 py-3 text-sm font-semibold text-sidebar-accent-foreground transition-colors hover:bg-sidebar-accent/80"
+            className={`group flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold transition-colors ${
+              location === '/dashboard' 
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground' 
+                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+            }`}
             onClick={() => setMobileOpen(false)}
           >
-            <BarChart3 className="h-[18px] w-[18px] text-sidebar-primary" />
+            <BarChart3 className={`h-[18px] w-[18px] ${location === '/dashboard' ? 'text-sidebar-primary' : 'text-sidebar-foreground/50'}`} />
             <span>Visão geral</span>
-            <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />
+            {location === '/dashboard' && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}
+          </Link>
+          <Link
+            href="/customers"
+            data-testid="link-customers"
+            className={`group flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold transition-colors ${
+              location.startsWith('/customers') 
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground' 
+                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+            }`}
+            onClick={() => setMobileOpen(false)}
+          >
+            <Users className={`h-[18px] w-[18px] ${location.startsWith('/customers') ? 'text-sidebar-primary' : 'text-sidebar-foreground/50'}`} />
+            <span>Clientes</span>
+            {location.startsWith('/customers') && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}
+          </Link>
+          <Link
+            href="/products"
+            data-testid="link-products"
+            className={`group flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold transition-colors ${
+              location.startsWith('/products') 
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground' 
+                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+            }`}
+            onClick={() => setMobileOpen(false)}
+          >
+            <Package className={`h-[18px] w-[18px] ${location.startsWith('/products') ? 'text-sidebar-primary' : 'text-sidebar-foreground/50'}`} />
+            <span>Produtos</span>
+            {location.startsWith('/products') && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}
           </Link>
         </div>
         <div className="mt-auto px-6 pb-6">

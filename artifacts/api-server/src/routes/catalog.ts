@@ -8,8 +8,16 @@ import { customerService } from "../services/customer-service";
 import { productService } from "../services/product-service";
 
 const router: IRouter = Router();
-const snake = (value: unknown): unknown => Array.isArray(value) ? value.map(snake) : value && typeof value === "object"
-  ? Object.fromEntries(Object.entries(value).map(([key, item]) => [key.replace(/[A-Z]/g, c => `_${c.toLowerCase()}`), snake(item)])) : value;
+const snake = (value: unknown): unknown => {
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(snake);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(
+      ([key, item]) => [key.replace(/[A-Z]/g, c => `_${c.toLowerCase()}`), snake(item)],
+    ));
+  }
+  return value;
+};
 const querySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),

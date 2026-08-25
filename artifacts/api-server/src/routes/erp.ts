@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
 import { carriers, customers, db, integrationLogs, paymentTerms, products, representatives } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, or, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireErpApiKey } from "../middlewares/erp-api-key";
 
@@ -41,83 +41,71 @@ export function isStale(current: Date | null, incoming: Date) {
 
 const handlers: Record<keyof typeof erpItemSchemas, (item: any) => Promise<Outcome>> = {
   representatives: async item => {
-    const [current] = await db.select().from(representatives).where(eq(representatives.erpCode, item.erp_code)).limit(1);
-    if (current && isStale(current.sourceUpdatedAt, item.source_updated_at)) return "ignored";
-    if (!current) {
-      await db.insert(representatives).values({
-        erpCode: item.erp_code, name: item.name, email: item.email ?? null, active: item.active,
-        sourceUpdatedAt: item.source_updated_at, lastSyncedAt: new Date(),
-      });
-      return "created";
-    }
-    await db.update(representatives).set({
+    const values = {
       name: item.name, email: item.email ?? null, active: item.active,
       sourceUpdatedAt: item.source_updated_at, lastSyncedAt: new Date(), updatedAt: new Date(),
       // userId is deliberately omitted: ERP synchronization must never unlink a login.
-    }).where(eq(representatives.id, current.id));
-    return "updated";
+    };
+    const [result] = await db.insert(representatives).values({ erpCode: item.erp_code, ...values })
+      .onConflictDoUpdate({
+        target: representatives.erpCode, set: values,
+        setWhere: or(isNull(representatives.sourceUpdatedAt), sql`${representatives.sourceUpdatedAt} < excluded.source_updated_at`),
+      }).returning({ created: sql<boolean>`xmax = 0` });
+    return !result ? "ignored" : result.created ? "created" : "updated";
   },
   customers: async item => {
     const [representative] = await db.select({ id: representatives.id }).from(representatives)
       .where(eq(representatives.erpCode, item.representative_erp_code)).limit(1);
     if (!representative) throw new Error(`representative_erp_code não encontrado: ${item.representative_erp_code}`);
-    const [current] = await db.select().from(customers).where(eq(customers.erpCode, item.erp_code)).limit(1);
-    if (current && isStale(current.sourceUpdatedAt, item.source_updated_at)) return "ignored";
     const values = {
       representativeId: representative.id, corporateName: item.corporate_name, tradeName: item.trade_name ?? null,
       cnpjCpf: item.cnpj_cpf ?? null, city: item.city ?? null, state: item.state?.toUpperCase() ?? null,
       active: item.active, sourceUpdatedAt: item.source_updated_at, lastSyncedAt: new Date(), updatedAt: new Date(),
     };
-    if (!current) {
-      await db.insert(customers).values({ erpCode: item.erp_code, ...values });
-      return "created";
-    }
-    await db.update(customers).set(values).where(eq(customers.id, current.id));
-    return "updated";
+    const [result] = await db.insert(customers).values({ erpCode: item.erp_code, ...values })
+      .onConflictDoUpdate({
+        target: customers.erpCode, set: values,
+        setWhere: sql`${customers.sourceUpdatedAt} < excluded.source_updated_at`,
+      }).returning({ created: sql<boolean>`xmax = 0` });
+    return !result ? "ignored" : result.created ? "created" : "updated";
   },
   products: async item => {
-    const [current] = await db.select().from(products).where(eq(products.erpId, item.erp_id)).limit(1);
-    if (current && isStale(current.sourceUpdatedAt, item.source_updated_at)) return "ignored";
     const values = {
       groupCode: item.group_code, typeCode: item.type_code, productCode: item.product_code,
       referenceCode: item.reference_code, code: item.code, description: item.description,
       collection: item.collection ?? null, packaging: item.packaging ?? null, width: item.width ?? null, color: item.color ?? null, active: item.active, sourceUpdatedAt: item.source_updated_at,
       lastSyncedAt: new Date(), updatedAt: new Date(),
     };
-    if (!current) {
-      await db.insert(products).values({ erpId: item.erp_id, ...values });
-      return "created";
-    }
-    await db.update(products).set(values).where(eq(products.id, current.id));
-    return "updated";
+    const [result] = await db.insert(products).values({ erpId: item.erp_id, ...values })
+      .onConflictDoUpdate({
+        target: products.erpId, set: values,
+        setWhere: sql`${products.sourceUpdatedAt} < excluded.source_updated_at`,
+      }).returning({ created: sql<boolean>`xmax = 0` });
+    return !result ? "ignored" : result.created ? "created" : "updated";
   },
   "payment-terms": async item => {
-    const [current] = await db.select().from(paymentTerms).where(eq(paymentTerms.erpCode, item.erp_code)).limit(1);
-    if (current && isStale(current.sourceUpdatedAt, item.source_updated_at)) return "ignored";
     const values = {
       description: item.description, installments: item.installments ?? null, active: item.active,
       sourceUpdatedAt: item.source_updated_at, lastSyncedAt: new Date(), updatedAt: new Date(),
     };
-    if (!current) {
-      await db.insert(paymentTerms).values({ erpCode: item.erp_code, ...values });
-      return "created";
-    }
-    await db.update(paymentTerms).set(values).where(eq(paymentTerms.id, current.id));
-    return "updated";
+    const [result] = await db.insert(paymentTerms).values({ erpCode: item.erp_code, ...values })
+      .onConflictDoUpdate({
+        target: paymentTerms.erpCode, set: values,
+        setWhere: sql`${paymentTerms.sourceUpdatedAt} < excluded.source_updated_at`,
+      }).returning({ created: sql<boolean>`xmax = 0` });
+    return !result ? "ignored" : result.created ? "created" : "updated";
   },
   carriers: async item => {
-    const [current] = await db.select().from(carriers).where(eq(carriers.erpCode, item.erp_code)).limit(1);
-    if (current && isStale(current.sourceUpdatedAt, item.source_updated_at)) return "ignored";
     const values = {
       name: item.name, taxId: item.tax_id ?? null, active: item.active,
       sourceUpdatedAt: item.source_updated_at, lastSyncedAt: new Date(), updatedAt: new Date(),
     };
-    if (!current) {
-      await db.insert(carriers).values({ erpCode: item.erp_code, ...values });
-      return "created";
-    }
-    await db.update(carriers).set(values).where(eq(carriers.id, current.id));
-    return "updated";
+    const [result] = await db.insert(carriers).values({ erpCode: item.erp_code, ...values })
+      .onConflictDoUpdate({
+        target: carriers.erpCode, set: values,
+        setWhere: sql`${carriers.sourceUpdatedAt} < excluded.source_updated_at`,
+      }).returning({ created: sql<boolean>`xmax = 0` });
+    return !result ? "ignored" : result.created ? "created" : "updated";
   },
 };
 
@@ -147,9 +135,13 @@ for (const entity of Object.keys(erpItemSchemas) as (keyof typeof erpItemSchemas
         counters[outcome]++;
       } catch (error) {
         counters.errors++;
+        const message = error instanceof Error
+          && error.message.startsWith("representative_erp_code não encontrado:")
+          ? error.message
+          : "Erro ao persistir item.";
         errors.push({
           index, ...(externalId && { external_id: externalId }),
-          error: error instanceof Error ? error.message : "Erro ao persistir item.",
+          error: message,
         });
       }
     }

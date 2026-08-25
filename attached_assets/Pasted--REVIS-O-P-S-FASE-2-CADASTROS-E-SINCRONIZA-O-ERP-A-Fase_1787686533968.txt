@@ -1,0 +1,506 @@
+# REVISÃO PÓS-FASE 2 — CADASTROS E SINCRONIZAÇÃO ERP
+
+A Fase 2 já foi implementada.
+
+Antes de iniciar a Fase 3, faça uma revisão técnica da implementação existente e corrija os pontos abaixo.
+
+IMPORTANTE:
+
+* NÃO reimplemente a Fase 2 do zero.
+* NÃO substitua funcionalidades que já estão funcionando sem necessidade.
+* Primeiro analise o código existente.
+* Faça alterações incrementais.
+* Preserve migrations anteriores.
+* Qualquer alteração de banco deve gerar nova migration.
+* Preserve os contratos existentes sempre que possível.
+* Atualize testes e documentação.
+* NÃO iniciar a Fase 3.
+
+---
+
+# 1. CÓDIGOS ERP DOS PRODUTOS
+
+Revise a implementação da tabela `products` e de todos os schemas, services, repositories, APIs e componentes relacionados.
+
+Os seguintes campos devem obrigatoriamente ser tratados como TEXTO em todas as camadas:
+
+`group_code VARCHAR(2)`
+
+`type_code VARCHAR(2)`
+
+`product_code VARCHAR(4)`
+
+`reference_code VARCHAR(8)`
+
+Nunca converter esses valores para INTEGER ou outro tipo numérico.
+
+Zeros à esquerda são significativos e devem ser preservados.
+
+Exemplos:
+
+`group_code = "01"`
+
+`type_code = "02"`
+
+`product_code = "0025"`
+
+`reference_code = "00001234"`
+
+Validar:
+
+* PostgreSQL;
+* Drizzle;
+* Zod;
+* API ERP;
+* ProductService;
+* repositories;
+* API Web;
+* OpenAPI;
+* frontend;
+* testes.
+
+Não aplicar `parseInt`, `Number()` ou transformação equivalente nesses campos.
+
+Se a implementação atual já estiver correta, não alterá-la desnecessariamente. Apenas confirme através dos testes.
+
+Criar ou confirmar testes automatizados garantindo preservação dos zeros à esquerda.
+
+---
+
+# 2. SINCRONIZAÇÃO DE CLIENTES COM REPRESENTANTES
+
+Revise como a API ERP relaciona clientes aos representantes.
+
+O ERP NÃO deverá precisar conhecer UUIDs internos do sistema web.
+
+O payload de cliente deverá utilizar:
+
+`representative_erp_code`
+
+Exemplo:
+
+```json
+{
+  "erp_code": "001245",
+  "corporate_name": "Cliente Exemplo Ltda",
+  "representative_erp_code": "028"
+}
+```
+
+Ao receber o cliente, a API deverá:
+
+1. receber `representative_erp_code`;
+2. procurar `representatives.erp_code`;
+3. obter o UUID interno do representante;
+4. gravar esse UUID em `customers.representative_id`.
+
+Nunca aceitar um `representative_id` UUID fornecido pelo ERP como fonte confiável para esse relacionamento.
+
+Se o representante informado não existir:
+
+* não criar relacionamento inválido;
+* não criar representante fictício;
+* classificar aquele item do lote como erro;
+* retornar código/motivo apropriado;
+* continuar processando os demais registros válidos.
+
+Sugestão de motivo:
+
+`REPRESENTATIVE_NOT_FOUND`
+
+Criar testes para esse comportamento.
+
+---
+
+# 3. SINCRONIZAÇÃO EM LOTE COM ERRO INDIVIDUAL
+
+Revise todos os endpoints de sincronização ERP da Fase 2.
+
+Um item inválido NÃO poderá abortar todo o lote.
+
+Exemplo:
+
+500 registros recebidos:
+
+* 497 válidos;
+* 2 inválidos;
+* 1 versão antiga.
+
+Resultado esperado:
+
+* 497 processados normalmente;
+* 2 classificados como erro;
+* 1 classificado como ignorado.
+
+Os registros válidos deverão permanecer gravados.
+
+Não executar rollback global do lote por causa de um único registro inválido, salvo em caso de falha estrutural do banco ou outra condição realmente fatal.
+
+Cada item deverá possuir resultado individual suficiente para reprocessamento.
+
+A resposta do lote deverá informar pelo menos:
+
+* received;
+* created;
+* updated;
+* ignored;
+* errors;
+* results.
+
+Exemplo conceitual:
+
+```json
+{
+  "correlationId": "uuid",
+  "received": 500,
+  "created": 300,
+  "updated": 197,
+  "ignored": 1,
+  "errors": 2,
+  "results": []
+}
+```
+
+Cada erro individual deverá permitir identificar o registro pelo identificador ERP.
+
+Não retornar dados sensíveis.
+
+Criar testes com lotes mistos contendo registros:
+
+* válidos;
+* inválidos;
+* duplicados;
+* antigos.
+
+---
+
+# 4. PROTEÇÃO CONTRA VERSÕES ANTIGAS
+
+Revise a utilização de:
+
+`source_updated_at`
+
+nos cadastros sincronizados.
+
+Quando o banco já possuir:
+
+`source_updated_at = 2026-08-25T14:00:00`
+
+e o ERP enviar posteriormente:
+
+`source_updated_at = 2026-08-25T13:00:00`
+
+o registro mais antigo NÃO deverá sobrescrever o registro atual.
+
+Esse item deverá ser classificado como:
+
+`ignored`
+
+Motivo sugerido:
+
+`STALE_SOURCE_VERSION`
+
+Não contabilizar como erro.
+
+O restante do lote deverá continuar normalmente.
+
+Se o timestamp recebido for mais novo:
+
+atualizar normalmente.
+
+Definir e testar também o comportamento quando os timestamps forem iguais.
+
+A regra deve ser consistente entre:
+
+* representatives;
+* customers;
+* products;
+* payment_terms;
+* carriers.
+
+Centralize essa regra se possível para evitar cinco implementações diferentes.
+
+Criar testes automatizados para:
+
+* timestamp mais novo;
+* timestamp mais antigo;
+* timestamp igual.
+
+Documentar a decisão adotada para timestamp igual.
+
+---
+
+# 5. PAGINAÇÃO PADRONIZADA
+
+Revise os endpoints de consulta da aplicação.
+
+Padronizar paginação utilizando:
+
+`page`
+
+`pageSize`
+
+Valores:
+
+`page = 1` por padrão.
+
+`pageSize = 20` por padrão.
+
+`pageSize = 100` como máximo.
+
+Se o frontend solicitar:
+
+`pageSize=500`
+
+a API não deverá retornar 500 registros.
+
+Aplicar o limite máximo de 100.
+
+A resposta deverá possuir estrutura consistente:
+
+```json
+{
+  "items": [],
+  "page": 1,
+  "pageSize": 20,
+  "totalItems": 0,
+  "totalPages": 0
+}
+```
+
+Aplicar pelo menos a:
+
+* GET `/api/v1/customers`
+* GET `/api/v1/products`
+
+e a outras listagens paginadas implementadas na Fase 2, quando aplicável.
+
+Pesquisa, filtros e ordenação deverão continuar sendo executados no PostgreSQL antes da paginação.
+
+Não carregar todos os registros para memória e depois paginar.
+
+Criar testes para:
+
+* valores padrão;
+* segunda página;
+* pageSize personalizado;
+* pageSize superior a 100;
+* totalItems;
+* totalPages;
+* filtros combinados com paginação.
+
+---
+
+# 6. CORRELATION ID
+
+Além dos cinco pontos acima, padronize o rastreamento das sincronizações ERP.
+
+Cada requisição/lote ERP deverá possuir um:
+
+`correlation_id`
+
+Preferencialmente UUID.
+
+Se o ERP enviar um correlation ID válido, preservá-lo.
+
+Se não enviar, gerar automaticamente.
+
+O mesmo correlation ID deverá:
+
+* acompanhar o processamento do lote;
+* ser armazenado nos `integration_logs`;
+* aparecer na resposta da API;
+* permitir localizar todos os eventos relacionados àquela sincronização.
+
+Não utilizar API Key, token ou qualquer informação sensível como correlation ID.
+
+Exemplo de resposta:
+
+```json
+{
+  "correlationId": "550e8400-e29b-41d4-a716-446655440000",
+  "received": 500,
+  "created": 300,
+  "updated": 197,
+  "ignored": 1,
+  "errors": 2
+}
+```
+
+---
+
+# 7. NÃO QUEBRAR O QUE JÁ FUNCIONA
+
+Antes de modificar qualquer código:
+
+1. execute os testes atuais;
+2. registre o estado atual;
+3. analise migrations existentes;
+4. analise o schema;
+5. analise os endpoints implementados;
+6. analise OpenAPI;
+7. analise os services/repositories existentes.
+
+Depois faça somente as alterações necessárias.
+
+Preservar:
+
+* Better Auth;
+* `requireAuth`;
+* `requireRole`;
+* `getAuthenticatedRepresentative()`;
+* isolamento dos representantes;
+* API Key ERP;
+* telas existentes;
+* paginação server-side;
+* funcionalidades aprovadas da Fase 1 e Fase 2.
+
+---
+
+# 8. TESTES DE REGRESSÃO
+
+Depois das correções, executar novamente todos os testes existentes.
+
+Além disso, garantir testes específicos para:
+
+1. zeros à esquerda de Grupo;
+2. zeros à esquerda de Tipo;
+3. zeros à esquerda de Produto;
+4. zeros à esquerda de Referência;
+5. cliente associado através de `representative_erp_code`;
+6. representante inexistente no cliente;
+7. lote parcialmente inválido;
+8. registros válidos do lote persistidos mesmo existindo erros;
+9. `source_updated_at` mais antigo;
+10. `source_updated_at` mais novo;
+11. `source_updated_at` igual;
+12. paginação padrão 20;
+13. paginação máxima 100;
+14. totalItems;
+15. totalPages;
+16. correlation ID informado pelo ERP;
+17. correlation ID gerado pelo sistema.
+
+Também executar os testes existentes de:
+
+* autenticação;
+* autorização;
+* isolamento por representante;
+* API Key ERP;
+* UPSERT;
+* pesquisa de clientes;
+* pesquisa de produtos.
+
+Nenhum teste anteriormente aprovado deverá deixar de funcionar.
+
+---
+
+# 9. VALIDAÇÃO FINAL
+
+Ao terminar executar:
+
+* migrations;
+* typecheck;
+* todos os testes automatizados;
+* build da API;
+* build do frontend;
+* validação HTTP dos endpoints afetados.
+
+Se alguma interface tiver sido alterada, validar também:
+
+* desktop;
+* mobile 390 × 844.
+
+Não considerar a revisão concluída enquanto houver erro de:
+
+* TypeScript;
+* migration;
+* teste;
+* build.
+
+---
+
+# 10. OPENAPI E DOCUMENTAÇÃO
+
+Se qualquer contrato tiver sido alterado:
+
+Atualizar:
+
+`lib/api-spec/openapi.yaml`
+
+e regenerar:
+
+`lib/api-client-react/src/generated/api.ts`
+
+Atualizar também quando necessário:
+
+* README.md
+* docs/ARCHITECTURE.md
+* docs/DATABASE.md
+* docs/BUSINESS_RULES.md
+* docs/ERP_API.md
+* docs/CHANGELOG.md
+
+Especialmente documentar:
+
+* `representative_erp_code`;
+* comportamento de lote parcial;
+* `STALE_SOURCE_VERSION`;
+* paginação;
+* correlation ID.
+
+---
+
+# 11. RELATÓRIO FINAL
+
+Quando terminar, apresente um relatório dividido em:
+
+## Estado encontrado
+
+Para cada um dos cinco pontos, informe se:
+
+* já estava correto;
+* estava parcialmente correto;
+* precisava de correção.
+
+## Alterações realizadas
+
+Informe exatamente o que foi alterado.
+
+## Migrations
+
+Liste novas migrations, caso existam.
+
+## API ERP
+
+Mostre exemplos dos contratos finais de sincronização.
+
+## Paginação
+
+Mostre o contrato final das consultas.
+
+## Testes
+
+Informe:
+
+* quantidade total;
+* aprovados;
+* reprovados.
+
+## Builds
+
+Informe resultado de API e frontend.
+
+## Pendências
+
+Informe qualquer questão ainda não resolvida.
+
+## Conclusão
+
+Diga explicitamente se:
+
+**Fase 2 revisada e aprovada para iniciar a Fase 3.**
+
+Depois PARE.
+
+NÃO inicie a Fase 3 automaticamente.

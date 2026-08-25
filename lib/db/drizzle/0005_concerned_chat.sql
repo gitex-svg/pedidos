@@ -1,0 +1,2 @@
+-- No-op: the schema changes are applied by 0003; this entry persists the
+-- generated Drizzle snapshot so subsequent migrations diff from Fase 2.

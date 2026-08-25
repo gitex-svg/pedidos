@@ -8,6 +8,23 @@
 - `verifications`: estrutura do Better Auth para fluxos futuros de verificação.
 - `representatives`: cadastro ERP e vínculo opcional 1:1 com usuário.
 
+## Catálogos e integração da Fase 2
+
+- `representatives`: chave externa `erp_code`; a sincronização atualiza o
+  cadastro sem substituir o vínculo existente `user_id`.
+- `customers`: chave externa `erp_code`, com vínculo ao representante resolvido
+  a partir de `representative_erp_code` recebido do ERP.
+- `products`: chave externa `erp_id`.
+- `payment_terms`: chave externa `erp_code`.
+- `carriers`: chave externa `erp_code`.
+- Os registros de catálogo preservam `active` e `source_updated_at`; os logs de
+  integração registram o processamento e seu `correlation_id`.
+
+As chaves externas são usadas em UPSERT idempotente. Uma mensagem cuja
+`source_updated_at` seja mais antiga que a versão já persistida é ignorada,
+impedindo que entregas fora de ordem revertam o catálogo. `active=false` não
+remove o registro: ele é mantido para histórico e auditoria.
+
 ## Enums
 
 - `user_role`: `ADMIN`, `REPRESENTATIVE`.
@@ -15,7 +32,9 @@
 - `erp_status`: estados comerciais enviados pelo ERP.
 - `price_origin`: `CUSTOMER`, `REPRESENTATIVE`, `STANDARD`, `SPECIAL`.
 
-Sincronização técnica não é status comercial: futuramente será representada por timestamps como `last_synced_at` e `erp_synced_at`.
+Sincronização técnica não é status comercial. Na Fase 2, a ordenação da origem
+é controlada por `source_updated_at`, e os logs de integração preservam a
+rastreabilidade por `correlation_id`.
 
 ## Precisão financeira planejada
 

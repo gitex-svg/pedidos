@@ -49,3 +49,364 @@ export interface ErrorResponse {
   error: string;
 }
 
+export interface PageMeta {
+  page: number;
+  limit: number;
+  total: number;
+  total_pages: number;
+}
+
+export interface Customer {
+  id: string;
+  erp_code: string;
+  representative_id: string;
+  /** @nullable */
+  cnpj_cpf?: string | null;
+  corporate_name: string;
+  /** @nullable */
+  trade_name?: string | null;
+  /** @nullable */
+  city?: string | null;
+  /** @nullable */
+  state?: string | null;
+  active: boolean;
+}
+
+export interface Product {
+  id: string;
+  erp_id: string;
+  code: string;
+  description: string;
+  /** @nullable */
+  collection?: string | null;
+  /** @nullable */
+  packaging?: string | null;
+  /** @nullable */
+  width?: string | null;
+  /** @nullable */
+  color?: string | null;
+  /** @maxLength 2 */
+  group_code: string;
+  /** @maxLength 2 */
+  type_code: string;
+  /** @maxLength 4 */
+  product_code: string;
+  /** @maxLength 8 */
+  reference_code: string;
+  active: boolean;
+}
+
+export interface PaymentTerm {
+  id: string;
+  erp_code: string;
+  description: string;
+  active: boolean;
+}
+
+export interface Carrier {
+  id: string;
+  erp_code: string;
+  name: string;
+  active: boolean;
+}
+
+export type CustomerPage = PageMeta & {
+  items: Customer[];
+};
+
+export type ProductPage = PageMeta & {
+  items: Product[];
+};
+
+export type PaymentTermPage = PageMeta & {
+  items: PaymentTerm[];
+};
+
+export type CarrierPage = PageMeta & {
+  items: Carrier[];
+};
+
+export interface SyncBase {
+  active?: boolean;
+  source_updated_at: string;
+}
+
+export type RepresentativeSyncItem = SyncBase & ({
+  erp_code: string;
+  name: string;
+  /** @nullable */
+  email?: string | null;
+});
+
+export type CustomerSyncItem = SyncBase & ({
+  erp_code: string;
+  representative_erp_code: string;
+  corporate_name: string;
+  /** @nullable */
+  trade_name?: string | null;
+  /** @nullable */
+  cnpj_cpf?: string | null;
+  /** @nullable */
+  city?: string | null;
+  /** @nullable */
+  state?: string | null;
+});
+
+export type ProductSyncItem = SyncBase & ({
+  erp_id: string;
+  code: string;
+  description: string;
+  /** @nullable */
+  collection?: string | null;
+  /** @nullable */
+  packaging?: string | null;
+  /** @nullable */
+  width?: string | null;
+  /** @nullable */
+  color?: string | null;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     */
+  group_code: string;
+  /**
+     * @minLength 2
+     * @maxLength 2
+     */
+  type_code: string;
+  /**
+     * @minLength 4
+     * @maxLength 4
+     */
+  product_code: string;
+  /**
+     * @minLength 8
+     * @maxLength 8
+     */
+  reference_code: string;
+});
+
+export type PaymentTermSyncItem = SyncBase & ({
+  erp_code: string;
+  description: string;
+  /** @nullable */
+  installments?: number | null;
+});
+
+export type CarrierSyncItem = SyncBase & ({
+  erp_code: string;
+  name: string;
+  /** @nullable */
+  tax_id?: string | null;
+});
+
+export interface RepresentativeSyncBatch {
+  correlation_id?: string;
+  /** @maxItems 500 */
+  items: RepresentativeSyncItem[];
+}
+
+export interface CustomerSyncBatch {
+  correlation_id?: string;
+  /** @maxItems 500 */
+  items: CustomerSyncItem[];
+}
+
+export interface ProductSyncBatch {
+  correlation_id?: string;
+  /** @maxItems 500 */
+  items: ProductSyncItem[];
+}
+
+export interface PaymentTermSyncBatch {
+  correlation_id?: string;
+  /** @maxItems 500 */
+  items: PaymentTermSyncItem[];
+}
+
+export interface CarrierSyncBatch {
+  correlation_id?: string;
+  /** @maxItems 500 */
+  items: CarrierSyncItem[];
+}
+
+export type SyncResultItemErrorsItem = {
+  index: number;
+  external_id?: string;
+  error: string;
+};
+
+export interface SyncResult {
+  correlation_id: string;
+  received: number;
+  created: number;
+  updated: number;
+  ignored: number;
+  errors: number;
+  item_errors: SyncResultItemErrorsItem[];
+}
+
+/**
+ * Resultado integral ou parcial do lote
+ */
+export type SyncResultResponse = SyncResult;
+
+export type PageParameter = number;
+
+export type LimitParameter = number;
+
+export type SearchParameter = string;
+
+/**
+ * Disponível a administradores; representantes sempre veem ativos
+ */
+export type ActiveParameter = boolean;
+
+export type OrderParameter = typeof OrderParameter[keyof typeof OrderParameter];
+
+
+export const OrderParameter = {
+  asc: 'asc',
+  desc: 'desc',
+} as const;
+
+export type ListCustomersParams = {
+/**
+ * @minimum 1
+ */
+page?: PageParameter;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: LimitParameter;
+/**
+ * @maxLength 200
+ */
+search?: SearchParameter;
+/**
+ * @maxLength 200
+ */
+q?: string;
+/**
+ * Disponível a administradores; representantes sempre veem ativos
+ */
+active?: ActiveParameter;
+sort?: ListCustomersSort;
+order?: OrderParameter;
+};
+
+export type ListCustomersSort = typeof ListCustomersSort[keyof typeof ListCustomersSort];
+
+
+export const ListCustomersSort = {
+  name: 'name',
+  erpCode: 'erpCode',
+  city: 'city',
+  updatedAt: 'updatedAt',
+} as const;
+
+export type ListProductsParams = {
+/**
+ * @minimum 1
+ */
+page?: PageParameter;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: LimitParameter;
+/**
+ * @maxLength 200
+ */
+search?: SearchParameter;
+/**
+ * @maxLength 200
+ */
+q?: string;
+/**
+ * Disponível a administradores; representantes sempre veem ativos
+ */
+active?: ActiveParameter;
+/**
+ * @minLength 2
+ * @maxLength 2
+ */
+group_code?: string;
+/**
+ * @minLength 2
+ * @maxLength 2
+ */
+type_code?: string;
+/**
+ * @minLength 4
+ * @maxLength 4
+ */
+product_code?: string;
+/**
+ * @minLength 8
+ * @maxLength 8
+ */
+reference_code?: string;
+code?: string;
+description?: string;
+collection?: string;
+packaging?: string;
+width?: string;
+color?: string;
+sort?: ListProductsSort;
+order?: OrderParameter;
+};
+
+export type ListProductsSort = typeof ListProductsSort[keyof typeof ListProductsSort];
+
+
+export const ListProductsSort = {
+  description: 'description',
+  erpId: 'erpId',
+  productCode: 'productCode',
+  updatedAt: 'updatedAt',
+} as const;
+
+export type ListPaymentTermsParams = {
+/**
+ * @minimum 1
+ */
+page?: PageParameter;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: LimitParameter;
+/**
+ * @maxLength 200
+ */
+search?: SearchParameter;
+/**
+ * Disponível a administradores; representantes sempre veem ativos
+ */
+active?: ActiveParameter;
+order?: OrderParameter;
+};
+
+export type ListCarriersParams = {
+/**
+ * @minimum 1
+ */
+page?: PageParameter;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: LimitParameter;
+/**
+ * @maxLength 200
+ */
+search?: SearchParameter;
+/**
+ * Disponível a administradores; representantes sempre veem ativos
+ */
+active?: ActiveParameter;
+order?: OrderParameter;
+};
+

@@ -75,3 +75,369 @@ export const AdminHealthCheckResponse = zod.object({
 })
 
 
+export const listCustomersQueryPageDefault = 1;
+
+export const listCustomersQueryLimitDefault = 20;
+export const listCustomersQueryLimitMax = 100;
+
+export const listCustomersQuerySearchMax = 200;
+
+export const listCustomersQueryQMax = 200;
+
+export const listCustomersQueryOrderDefault = `asc`;
+
+export const ListCustomersQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(listCustomersQueryPageDefault),
+  "limit": zod.coerce.number().int().min(1).max(listCustomersQueryLimitMax).default(listCustomersQueryLimitDefault),
+  "search": zod.coerce.string().max(listCustomersQuerySearchMax).optional(),
+  "q": zod.coerce.string().max(listCustomersQueryQMax).optional(),
+  "active": zod.coerce.boolean().optional().describe('Disponível a administradores; representantes sempre veem ativos'),
+  "sort": zod.enum(['name', 'erpCode', 'city', 'updatedAt']).optional(),
+  "order": zod.enum(['asc', 'desc']).default(listCustomersQueryOrderDefault)
+})
+
+export const ListCustomersResponse = zod.object({
+  "page": zod.int(),
+  "limit": zod.int(),
+  "total": zod.int(),
+  "total_pages": zod.int()
+}).and(zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "erp_code": zod.string(),
+  "representative_id": zod.uuid(),
+  "cnpj_cpf": zod.string().nullish(),
+  "corporate_name": zod.string(),
+  "trade_name": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "state": zod.string().nullish(),
+  "active": zod.boolean()
+}))
+}))
+
+
+export const listProductsQueryPageDefault = 1;
+
+export const listProductsQueryLimitDefault = 20;
+export const listProductsQueryLimitMax = 100;
+
+export const listProductsQuerySearchMax = 200;
+
+export const listProductsQueryQMax = 200;
+
+export const listProductsQueryGroupCodeMin = 2;
+export const listProductsQueryGroupCodeMax = 2;
+
+export const listProductsQueryTypeCodeMin = 2;
+export const listProductsQueryTypeCodeMax = 2;
+
+export const listProductsQueryProductCodeMin = 4;
+export const listProductsQueryProductCodeMax = 4;
+
+export const listProductsQueryReferenceCodeMin = 8;
+export const listProductsQueryReferenceCodeMax = 8;
+
+export const listProductsQueryOrderDefault = `asc`;
+
+export const ListProductsQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(listProductsQueryPageDefault),
+  "limit": zod.coerce.number().int().min(1).max(listProductsQueryLimitMax).default(listProductsQueryLimitDefault),
+  "search": zod.coerce.string().max(listProductsQuerySearchMax).optional(),
+  "q": zod.coerce.string().max(listProductsQueryQMax).optional(),
+  "active": zod.coerce.boolean().optional().describe('Disponível a administradores; representantes sempre veem ativos'),
+  "group_code": zod.coerce.string().min(listProductsQueryGroupCodeMin).max(listProductsQueryGroupCodeMax).optional(),
+  "type_code": zod.coerce.string().min(listProductsQueryTypeCodeMin).max(listProductsQueryTypeCodeMax).optional(),
+  "product_code": zod.coerce.string().min(listProductsQueryProductCodeMin).max(listProductsQueryProductCodeMax).optional(),
+  "reference_code": zod.coerce.string().min(listProductsQueryReferenceCodeMin).max(listProductsQueryReferenceCodeMax).optional(),
+  "code": zod.coerce.string().optional(),
+  "description": zod.coerce.string().optional(),
+  "collection": zod.coerce.string().optional(),
+  "packaging": zod.coerce.string().optional(),
+  "width": zod.coerce.string().optional(),
+  "color": zod.coerce.string().optional(),
+  "sort": zod.enum(['description', 'erpId', 'productCode', 'updatedAt']).optional(),
+  "order": zod.enum(['asc', 'desc']).default(listProductsQueryOrderDefault)
+})
+
+export const listProductsResponseTwoItemsItemGroupCodeMax = 2;
+
+export const listProductsResponseTwoItemsItemTypeCodeMax = 2;
+
+export const listProductsResponseTwoItemsItemProductCodeMax = 4;
+
+export const listProductsResponseTwoItemsItemReferenceCodeMax = 8;
+
+
+
+export const ListProductsResponse = zod.object({
+  "page": zod.int(),
+  "limit": zod.int(),
+  "total": zod.int(),
+  "total_pages": zod.int()
+}).and(zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "erp_id": zod.string(),
+  "code": zod.string(),
+  "description": zod.string(),
+  "collection": zod.string().nullish(),
+  "packaging": zod.string().nullish(),
+  "width": zod.string().nullish(),
+  "color": zod.string().nullish(),
+  "group_code": zod.string().max(listProductsResponseTwoItemsItemGroupCodeMax),
+  "type_code": zod.string().max(listProductsResponseTwoItemsItemTypeCodeMax),
+  "product_code": zod.string().max(listProductsResponseTwoItemsItemProductCodeMax),
+  "reference_code": zod.string().max(listProductsResponseTwoItemsItemReferenceCodeMax),
+  "active": zod.boolean()
+}))
+}))
+
+
+export const listPaymentTermsQueryPageDefault = 1;
+
+export const listPaymentTermsQueryLimitDefault = 20;
+export const listPaymentTermsQueryLimitMax = 100;
+
+export const listPaymentTermsQuerySearchMax = 200;
+
+export const listPaymentTermsQueryOrderDefault = `asc`;
+
+export const ListPaymentTermsQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(listPaymentTermsQueryPageDefault),
+  "limit": zod.coerce.number().int().min(1).max(listPaymentTermsQueryLimitMax).default(listPaymentTermsQueryLimitDefault),
+  "search": zod.coerce.string().max(listPaymentTermsQuerySearchMax).optional(),
+  "active": zod.coerce.boolean().optional().describe('Disponível a administradores; representantes sempre veem ativos'),
+  "order": zod.enum(['asc', 'desc']).default(listPaymentTermsQueryOrderDefault)
+})
+
+export const ListPaymentTermsResponse = zod.object({
+  "page": zod.int(),
+  "limit": zod.int(),
+  "total": zod.int(),
+  "total_pages": zod.int()
+}).and(zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "erp_code": zod.string(),
+  "description": zod.string(),
+  "active": zod.boolean()
+}))
+}))
+
+
+export const listCarriersQueryPageDefault = 1;
+
+export const listCarriersQueryLimitDefault = 20;
+export const listCarriersQueryLimitMax = 100;
+
+export const listCarriersQuerySearchMax = 200;
+
+export const listCarriersQueryOrderDefault = `asc`;
+
+export const ListCarriersQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(listCarriersQueryPageDefault),
+  "limit": zod.coerce.number().int().min(1).max(listCarriersQueryLimitMax).default(listCarriersQueryLimitDefault),
+  "search": zod.coerce.string().max(listCarriersQuerySearchMax).optional(),
+  "active": zod.coerce.boolean().optional().describe('Disponível a administradores; representantes sempre veem ativos'),
+  "order": zod.enum(['asc', 'desc']).default(listCarriersQueryOrderDefault)
+})
+
+export const ListCarriersResponse = zod.object({
+  "page": zod.int(),
+  "limit": zod.int(),
+  "total": zod.int(),
+  "total_pages": zod.int()
+}).and(zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "erp_code": zod.string(),
+  "name": zod.string(),
+  "active": zod.boolean()
+}))
+}))
+
+
+export const syncRepresentativesBodyItemsItemOneActiveDefault = true;
+export const syncRepresentativesBodyItemsMax = 500;
+
+
+
+export const SyncRepresentativesBody = zod.object({
+  "correlation_id": zod.uuid().optional(),
+  "items": zod.array(zod.object({
+  "active": zod.boolean().default(syncRepresentativesBodyItemsItemOneActiveDefault),
+  "source_updated_at": zod.coerce.date()
+}).and(zod.object({
+  "erp_code": zod.string(),
+  "name": zod.string(),
+  "email": zod.email().nullish()
+}))).max(syncRepresentativesBodyItemsMax)
+})
+
+export const SyncRepresentativesResponse = zod.object({
+  "correlation_id": zod.uuid(),
+  "received": zod.int(),
+  "created": zod.int(),
+  "updated": zod.int(),
+  "ignored": zod.int(),
+  "errors": zod.int(),
+  "item_errors": zod.array(zod.object({
+  "index": zod.int(),
+  "external_id": zod.string().optional(),
+  "error": zod.string()
+}))
+})
+
+
+export const syncCustomersBodyItemsItemOneActiveDefault = true;
+export const syncCustomersBodyItemsMax = 500;
+
+
+
+export const SyncCustomersBody = zod.object({
+  "correlation_id": zod.uuid().optional(),
+  "items": zod.array(zod.object({
+  "active": zod.boolean().default(syncCustomersBodyItemsItemOneActiveDefault),
+  "source_updated_at": zod.coerce.date()
+}).and(zod.object({
+  "erp_code": zod.string(),
+  "representative_erp_code": zod.string(),
+  "corporate_name": zod.string(),
+  "trade_name": zod.string().nullish(),
+  "cnpj_cpf": zod.string().nullish(),
+  "city": zod.string().nullish(),
+  "state": zod.string().nullish()
+}))).max(syncCustomersBodyItemsMax)
+})
+
+export const SyncCustomersResponse = zod.object({
+  "correlation_id": zod.uuid(),
+  "received": zod.int(),
+  "created": zod.int(),
+  "updated": zod.int(),
+  "ignored": zod.int(),
+  "errors": zod.int(),
+  "item_errors": zod.array(zod.object({
+  "index": zod.int(),
+  "external_id": zod.string().optional(),
+  "error": zod.string()
+}))
+})
+
+
+export const syncProductsBodyItemsItemOneActiveDefault = true;
+export const syncProductsBodyItemsItemTwoGroupCodeMin = 2;
+export const syncProductsBodyItemsItemTwoGroupCodeMax = 2;
+
+export const syncProductsBodyItemsItemTwoTypeCodeMin = 2;
+export const syncProductsBodyItemsItemTwoTypeCodeMax = 2;
+
+export const syncProductsBodyItemsItemTwoProductCodeMin = 4;
+export const syncProductsBodyItemsItemTwoProductCodeMax = 4;
+
+export const syncProductsBodyItemsItemTwoReferenceCodeMin = 8;
+export const syncProductsBodyItemsItemTwoReferenceCodeMax = 8;
+
+export const syncProductsBodyItemsMax = 500;
+
+
+
+export const SyncProductsBody = zod.object({
+  "correlation_id": zod.uuid().optional(),
+  "items": zod.array(zod.object({
+  "active": zod.boolean().default(syncProductsBodyItemsItemOneActiveDefault),
+  "source_updated_at": zod.coerce.date()
+}).and(zod.object({
+  "erp_id": zod.string(),
+  "code": zod.string(),
+  "description": zod.string(),
+  "collection": zod.string().nullish(),
+  "packaging": zod.string().nullish(),
+  "width": zod.string().nullish(),
+  "color": zod.string().nullish(),
+  "group_code": zod.string().min(syncProductsBodyItemsItemTwoGroupCodeMin).max(syncProductsBodyItemsItemTwoGroupCodeMax),
+  "type_code": zod.string().min(syncProductsBodyItemsItemTwoTypeCodeMin).max(syncProductsBodyItemsItemTwoTypeCodeMax),
+  "product_code": zod.string().min(syncProductsBodyItemsItemTwoProductCodeMin).max(syncProductsBodyItemsItemTwoProductCodeMax),
+  "reference_code": zod.string().min(syncProductsBodyItemsItemTwoReferenceCodeMin).max(syncProductsBodyItemsItemTwoReferenceCodeMax)
+}))).max(syncProductsBodyItemsMax)
+})
+
+export const SyncProductsResponse = zod.object({
+  "correlation_id": zod.uuid(),
+  "received": zod.int(),
+  "created": zod.int(),
+  "updated": zod.int(),
+  "ignored": zod.int(),
+  "errors": zod.int(),
+  "item_errors": zod.array(zod.object({
+  "index": zod.int(),
+  "external_id": zod.string().optional(),
+  "error": zod.string()
+}))
+})
+
+
+export const syncPaymentTermsBodyItemsItemOneActiveDefault = true;
+export const syncPaymentTermsBodyItemsMax = 500;
+
+
+
+export const SyncPaymentTermsBody = zod.object({
+  "correlation_id": zod.uuid().optional(),
+  "items": zod.array(zod.object({
+  "active": zod.boolean().default(syncPaymentTermsBodyItemsItemOneActiveDefault),
+  "source_updated_at": zod.coerce.date()
+}).and(zod.object({
+  "erp_code": zod.string(),
+  "description": zod.string(),
+  "installments": zod.int().nullish()
+}))).max(syncPaymentTermsBodyItemsMax)
+})
+
+export const SyncPaymentTermsResponse = zod.object({
+  "correlation_id": zod.uuid(),
+  "received": zod.int(),
+  "created": zod.int(),
+  "updated": zod.int(),
+  "ignored": zod.int(),
+  "errors": zod.int(),
+  "item_errors": zod.array(zod.object({
+  "index": zod.int(),
+  "external_id": zod.string().optional(),
+  "error": zod.string()
+}))
+})
+
+
+export const syncCarriersBodyItemsItemOneActiveDefault = true;
+export const syncCarriersBodyItemsMax = 500;
+
+
+
+export const SyncCarriersBody = zod.object({
+  "correlation_id": zod.uuid().optional(),
+  "items": zod.array(zod.object({
+  "active": zod.boolean().default(syncCarriersBodyItemsItemOneActiveDefault),
+  "source_updated_at": zod.coerce.date()
+}).and(zod.object({
+  "erp_code": zod.string(),
+  "name": zod.string(),
+  "tax_id": zod.string().nullish()
+}))).max(syncCarriersBodyItemsMax)
+})
+
+export const SyncCarriersResponse = zod.object({
+  "correlation_id": zod.uuid(),
+  "received": zod.int(),
+  "created": zod.int(),
+  "updated": zod.int(),
+  "ignored": zod.int(),
+  "errors": zod.int(),
+  "item_errors": zod.array(zod.object({
+  "index": zod.int(),
+  "external_id": zod.string().optional(),
+  "error": zod.string()
+}))
+})
+
+
