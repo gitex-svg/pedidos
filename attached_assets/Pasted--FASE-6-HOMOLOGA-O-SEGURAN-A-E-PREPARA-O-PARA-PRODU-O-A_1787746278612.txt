@@ -1,0 +1,1665 @@
+# FASE 6 — HOMOLOGAÇÃO, SEGURANÇA E PREPARAÇÃO PARA PRODUÇÃO
+
+As Fases 1 a 5 do sistema Pedidos Fitas Gitex estão concluídas e aprovadas.
+
+O sistema já possui:
+
+* autenticação;
+* usuários ADMIN e REPRESENTATIVE;
+* isolamento por representante;
+* representantes;
+* clientes;
+* produtos;
+* condições de pagamento;
+* transportadoras;
+* sincronização ERP;
+* tabelas de preço;
+* hierarquia CUSTOMER → REPRESENTATIVE → STANDARD;
+* PricingService;
+* orçamentos/pedidos;
+* itens;
+* snapshots comerciais;
+* quatro descontos em cascata;
+* preço especial;
+* cálculos financeiros;
+* finalização;
+* fila de pedidos para ERP;
+* confirmação de importação;
+* atualização de status ERP;
+* histórico;
+* logs;
+* OpenAPI;
+* interface responsiva.
+
+A Fase 6 NÃO é uma fase de novas funcionalidades comerciais.
+
+O objetivo é:
+
+**homologar, estabilizar, proteger, medir e preparar o sistema existente para produção.**
+
+---
+
+# 1. REGRA PRINCIPAL DA FASE
+
+NÃO implementar novas funcionalidades comerciais.
+
+NÃO alterar regras aprovadas das Fases 1–5 sem encontrar um problema real.
+
+NÃO fazer grandes refatorações apenas por preferência arquitetural.
+
+NÃO substituir bibliotecas estáveis sem necessidade.
+
+NÃO alterar contratos ERP existentes sem motivo comprovado.
+
+Prioridades:
+
+1. estabilidade;
+2. segurança;
+3. integridade;
+4. homologação;
+5. observabilidade;
+6. performance;
+7. recuperação;
+8. preparação para produção.
+
+Se encontrar problema:
+
+1. documentar;
+2. classificar gravidade;
+3. corrigir com a menor alteração segura possível;
+4. criar teste de regressão;
+5. validar novamente.
+
+---
+
+# 2. AMBIENTES
+
+Formalizar três ambientes:
+
+* DEVELOPMENT
+* HOMOLOGATION
+* PRODUCTION
+
+Cada ambiente deverá possuir configurações independentes.
+
+Separar especialmente:
+
+* `DATABASE_URL`
+* `SESSION_SECRET`
+* `BETTER_AUTH_URL`
+* `ERP_API_KEY`
+* URL pública da aplicação
+* origens permitidas
+* nível de log
+* configurações específicas do ambiente
+
+Nunca reutilizar credenciais de produção em desenvolvimento.
+
+Documentar a estratégia.
+
+---
+
+# 3. VALIDAÇÃO DE CONFIGURAÇÃO
+
+Criar validação centralizada das variáveis obrigatórias.
+
+A aplicação deve falhar rapidamente na inicialização quando uma configuração crítica estiver ausente ou inválida.
+
+Por exemplo:
+
+* DATABASE_URL
+* SESSION_SECRET
+* BETTER_AUTH_URL
+* ERP_API_KEY
+
+Não imprimir o conteúdo dos Secrets no erro.
+
+Exemplo:
+
+`ERP_API_KEY is required`
+
+e nunca:
+
+`ERP_API_KEY abc123...`
+
+---
+
+# 4. SECRETS
+
+Auditar todo o projeto procurando:
+
+* senhas hardcoded;
+* API Keys;
+* tokens;
+* connection strings;
+* SESSION_SECRET;
+* credenciais de teste indevidamente versionadas.
+
+Verificar:
+
+* código;
+* migrations;
+* testes;
+* documentação;
+* arquivos `.env`;
+* logs;
+* exemplos;
+* fixtures.
+
+Nenhum Secret real deve estar versionado.
+
+Garantir que `.env` e equivalentes sensíveis estejam corretamente ignorados.
+
+---
+
+# 5. ERP API KEY
+
+Revisar a autenticação:
+
+`Authorization: Bearer <ERP_API_KEY>`
+
+Confirmar:
+
+* comparação segura;
+* ausência de vazamento em logs;
+* resposta 401 genérica;
+* nenhuma exposição no frontend;
+* nenhum armazenamento desnecessário.
+
+Documentar procedimento para:
+
+* criação;
+* configuração;
+* troca;
+* revogação.
+
+Se for simples e seguro, preparar possibilidade de rotação de chave.
+
+Não adicionar complexidade excessiva.
+
+---
+
+# 6. AUTENTICAÇÃO WEB
+
+Revisar a implementação atual do Better Auth.
+
+Confirmar:
+
+* cookie HttpOnly;
+* Secure em produção;
+* SameSite adequado;
+* expiração;
+* logout;
+* invalidação;
+* usuário inativo;
+* proteção contra session fixation;
+* comportamento após expiração.
+
+Não substituir Better Auth.
+
+---
+
+# 7. LOGIN — PROTEÇÃO CONTRA ABUSO
+
+Revisar o endpoint de login.
+
+Implementar ou validar rate limiting adequado.
+
+Proteger contra tentativas automatizadas excessivas.
+
+Não criar bloqueios permanentes que possam impedir usuários legítimos.
+
+Registrar eventos suspeitos sem registrar senha.
+
+---
+
+# 8. RATE LIMITING DA API ERP
+
+Revisar rate limiting dos endpoints:
+
+`/api/v1/erp/...`
+
+O limite deve impedir abuso, mas permitir sincronização legítima de lotes e pedidos.
+
+Não utilizar limite tão baixo que possa bloquear o ERP durante uma sincronização normal.
+
+Documentar os valores adotados.
+
+---
+
+# 9. REQUEST ID
+
+Toda requisição HTTP deve possuir um identificador:
+
+`request_id`
+
+Se não existir, gerar UUID.
+
+Utilizar nos logs.
+
+Quando apropriado retornar:
+
+`X-Request-Id`
+
+Isso é diferente de:
+
+`correlation_id`
+
+O `request_id` identifica uma requisição HTTP.
+
+O `correlation_id` acompanha uma operação de integração ERP.
+
+---
+
+# 10. CORRELATION ID
+
+Preservar o comportamento já existente.
+
+Quando o ERP informar correlation ID:
+
+preservar.
+
+Quando não informar:
+
+gerar UUID.
+
+Garantir que possa ser pesquisado nos logs de integração.
+
+---
+
+# 11. LOGS ESTRUTURADOS
+
+Padronizar logs técnicos.
+
+Quando aplicável incluir:
+
+* timestamp;
+* level;
+* request_id;
+* correlation_id;
+* method;
+* endpoint;
+* status_code;
+* duration_ms;
+* user role;
+* entity;
+* entity_id;
+* external_id.
+
+Nunca registrar:
+
+* senha;
+* cookie;
+* Authorization;
+* API Key;
+* SESSION_SECRET;
+* connection string.
+
+---
+
+# 12. LOGS DE INTEGRAÇÃO
+
+Revisar:
+
+`integration_logs`
+
+Garantir que operações importantes possam ser rastreadas:
+
+* sincronização de cadastro;
+* erros de sincronização;
+* confirmação de pedido;
+* atualização de status;
+* conflitos;
+* eventos obsoletos;
+* correlation IDs.
+
+Não registrar leitura trivial em excesso se isso gerar volume desnecessário.
+
+---
+
+# 13. PADRÃO DE ERROS
+
+Revisar respostas de erro.
+
+Padronizar, quando possível:
+
+```json
+{
+  "error": {
+    "code": "PRICE_NOT_FOUND",
+    "message": "Não existe preço disponível para este produto."
+  },
+  "requestId": "uuid"
+}
+```
+
+Em produção nunca retornar:
+
+* stack trace;
+* SQL;
+* nome de tabela interna desnecessário;
+* caminho do servidor;
+* Secret;
+* detalhes internos do PostgreSQL.
+
+Logs internos podem conter detalhes técnicos seguros.
+
+---
+
+# 14. HEALTH CHECK
+
+Criar ou revisar:
+
+GET `/health`
+
+Deve indicar que o processo está ativo.
+
+Resposta simples.
+
+Não consultar serviços pesados.
+
+---
+
+# 15. READINESS CHECK
+
+Criar ou revisar:
+
+GET `/ready`
+
+Validar pelo menos:
+
+* aplicação inicializada;
+* banco PostgreSQL acessível.
+
+Responder corretamente quando a aplicação não estiver apta a receber tráfego.
+
+Não expor credenciais ou informações internas.
+
+---
+
+# 16. SEGURANÇA — ISOLAMENTO DOS REPRESENTANTES
+
+Executar testes explícitos com:
+
+Representante A
+
+e
+
+Representante B.
+
+Tentar acessar recursos cruzados.
+
+Validar:
+
+A não consulta clientes de B.
+
+A não consulta pedidos de B.
+
+A não altera pedidos de B.
+
+A não adiciona itens ao pedido de B.
+
+A não remove itens de B.
+
+A não consulta preço utilizando cliente de B.
+
+A não consegue forjar `representative_id`.
+
+A proteção deve estar no backend.
+
+---
+
+# 17. MASS ASSIGNMENT
+
+Auditar todos os POST/PATCH.
+
+Garantir que o navegador não possa alterar campos controlados pelo servidor.
+
+Exemplos:
+
+* representative_id;
+* internal_number;
+* internal_status;
+* erp_status;
+* erp_order_number;
+* erp_synced_at;
+* gross_total;
+* net_total;
+* suggested_unit_price;
+* suggested_price_origin;
+* effective_unit_price;
+* effective_price_origin;
+* created_by_user_id;
+* snapshots.
+
+Schemas Zod devem permitir somente campos editáveis.
+
+---
+
+# 18. SQL INJECTION
+
+Auditar consultas.
+
+Confirmar uso de:
+
+* Drizzle;
+* queries parametrizadas;
+* parâmetros seguros.
+
+Procurar SQL construído concatenando entrada do usuário.
+
+Corrigir qualquer ocorrência insegura.
+
+---
+
+# 19. XSS
+
+Auditar:
+
+* observações;
+* razão social;
+* nome fantasia;
+* descrição de produto;
+* dados vindos do ERP.
+
+Não renderizar conteúdo não confiável como HTML.
+
+Pesquisar utilização de:
+
+`dangerouslySetInnerHTML`
+
+Se existir com dados externos, revisar e corrigir.
+
+---
+
+# 20. CSRF
+
+Revisar endpoints autenticados por cookie.
+
+Garantir proteção adequada para operações mutáveis.
+
+Não aplicar CSRF baseado em cookie aos endpoints ERP Bearer Token de forma que quebre a integração server-to-server.
+
+Documentar a estratégia.
+
+---
+
+# 21. HEADERS DE SEGURANÇA
+
+Revisar/adicionar headers adequados:
+
+* Content-Security-Policy;
+* X-Content-Type-Options;
+* Referrer-Policy;
+* Permissions-Policy;
+* proteção contra framing.
+
+Implementar CSP compatível com a aplicação existente.
+
+Validar no navegador depois da alteração.
+
+Não aplicar configuração que quebre React, autenticação ou assets.
+
+---
+
+# 22. CORS
+
+Revisar CORS.
+
+Não utilizar origem:
+
+`*`
+
+em endpoints autenticados por cookie.
+
+Produção deve aceitar somente origens necessárias.
+
+ERP server-to-server não depende de CORS para segurança.
+
+Documentar a configuração.
+
+---
+
+# 23. BANCO — INTEGRIDADE
+
+Revisar todas as tabelas importantes:
+
+* users;
+* representatives;
+* customers;
+* products;
+* payment_terms;
+* carriers;
+* price_tables;
+* price_table_items;
+* orders;
+* order_items;
+* order_status_history;
+* integration_logs.
+
+Verificar:
+
+* foreign keys;
+* UNIQUE;
+* CHECK;
+* NOT NULL;
+* índices;
+* tipos;
+* comportamento de exclusão;
+* inativação lógica.
+
+Não alterar schema sem motivo demonstrável.
+
+---
+
+# 24. PRECISÃO FINANCEIRA — NÃO ALTERAR
+
+Preservar obrigatoriamente:
+
+## Unitários
+
+`NUMERIC(18,6)`
+
+## Quantidade
+
+`NUMERIC(18,4)`
+
+## Descontos
+
+`NUMERIC(7,4)`
+
+## Totais
+
+`NUMERIC(20,2)`
+
+Não modificar essa arquitetura.
+
+---
+
+# 25. ARREDONDAMENTO — NÃO ALTERAR
+
+Preservar:
+
+`ROUND_HALF_UP`
+
+Total do item:
+
+2 casas.
+
+Total do pedido:
+
+soma dos totais dos itens já arredondados.
+
+Não recalcular o total do pedido utilizando valores intermediários.
+
+---
+
+# 26. TESTES FINANCEIROS OBRIGATÓRIOS
+
+Revalidar:
+
+### Caso 1
+
+Preço:
+
+`2.994300`
+
+Quantidade:
+
+`3`
+
+Total:
+
+`8.98`
+
+### Caso 2
+
+Preço:
+
+`1.667000`
+
+Quantidade:
+
+`3`
+
+Total:
+
+`5.00`
+
+Pedido:
+
+`13.98`
+
+Criar/confirmar teste automatizado de regressão.
+
+---
+
+# 27. DESCONTOS
+
+Revalidar:
+
+D1 → D2 → D3 → D4
+
+em cascata.
+
+Nunca:
+
+D1 + D2 + D3 + D4.
+
+Confirmar ausência de arredondamento indevido durante a cascata.
+
+---
+
+# 28. PREÇO ESPECIAL
+
+Revalidar:
+
+* preço sugerido permanece congelado;
+* special_unit_price possui até 6 casas;
+* effective origin = SPECIAL;
+* descontos ficam armazenados;
+* discounts_applied = false;
+* descontos não afetam preço especial;
+* total possui 2 casas.
+
+---
+
+# 29. PERFORMANCE — PRODUTOS
+
+Criar massa de teste realista.
+
+Testar pesquisa por:
+
+* descrição;
+* group_code;
+* type_code;
+* product_code;
+* reference_code;
+* combinação dos quatro códigos.
+
+Confirmar:
+
+* paginação no PostgreSQL;
+* ausência de carregamento completo;
+* índices adequados;
+* tempo de resposta aceitável.
+
+Preservar zeros à esquerda.
+
+---
+
+# 30. PERFORMANCE — CLIENTES
+
+Testar pesquisa por:
+
+* código ERP;
+* CNPJ/CPF;
+* razão social;
+* nome fantasia.
+
+Confirmar escopo por representante e paginação server-side.
+
+---
+
+# 31. PERFORMANCE — PRICING SERVICE
+
+Criar volume realista de:
+
+* produtos;
+* clientes;
+* representantes;
+* tabelas;
+* itens de preço.
+
+Medir a resolução:
+
+CUSTOMER
+→ REPRESENTATIVE
+→ STANDARD
+
+Não alterar a hierarquia.
+
+Utilizar EXPLAIN/EXPLAIN ANALYZE quando necessário.
+
+---
+
+# 32. PERFORMANCE — PEDIDOS
+
+Testar:
+
+* listagem;
+* filtros;
+* detalhe;
+* itens;
+* histórico.
+
+Procurar:
+
+* N+1;
+* consultas repetidas;
+* scans desnecessários.
+
+---
+
+# 33. PERFORMANCE — FILA ERP
+
+Testar:
+
+GET `/api/v1/erp/orders/submitted`
+
+com volume crescente.
+
+Confirmar:
+
+* índice adequado;
+* paginação;
+* ordenação determinística;
+* ausência de N+1.
+
+---
+
+# 34. ÍNDICES
+
+Não criar índices indiscriminadamente.
+
+Para consultas críticas:
+
+1. medir;
+2. analisar query plan;
+3. identificar gargalo;
+4. somente então adicionar índice.
+
+Documentar alterações.
+
+---
+
+# 35. TESTE DE CARGA CONTROLADO
+
+Executar carga controlada em ambiente apropriado.
+
+Medir quando possível:
+
+* p50;
+* p95;
+* throughput;
+* taxa de erros.
+
+Cenários:
+
+* login;
+* pesquisa de produto;
+* pesquisa de cliente;
+* PricingService;
+* listagem de pedidos;
+* fila ERP.
+
+Não realizar teste destrutivo no ambiente de produção.
+
+---
+
+# 36. HOMOLOGAÇÃO — SINCRONIZAÇÃO DE CADASTROS
+
+Executar ciclo completo:
+
+ERP
+→ representatives
+→ customers
+→ products
+→ payment terms
+→ carriers
+→ price tables.
+
+Validar:
+
+* criação;
+* atualização;
+* inativação;
+* UPSERT;
+* idempotência;
+* timestamp antigo;
+* timestamp igual;
+* lote parcialmente inválido;
+* representative not found;
+* correlation ID.
+
+---
+
+# 37. HOMOLOGAÇÃO — PEDIDO
+
+Executar:
+
+1. representante autentica;
+2. cria orçamento;
+3. escolhe cliente;
+4. inclui itens;
+5. PricingService resolve preço;
+6. descontos são aplicados;
+7. pedido é finalizado;
+8. pedido fica SUBMITTED;
+9. ERP consulta fila;
+10. ERP consulta detalhe;
+11. ERP importa;
+12. ERP confirma;
+13. número ERP aparece no sistema;
+14. pedido sai da fila.
+
+---
+
+# 38. HOMOLOGAÇÃO — STATUS
+
+Continuar:
+
+15. ERP envia EM_ANALISE;
+16. interface mostra Em Análise;
+17. ERP envia APROVADO;
+18. interface mostra Aprovado;
+19. ERP envia FECHADO;
+20. interface mostra Fechado;
+21. ERP envia FATURADO;
+22. interface mostra Faturado.
+
+Executar cenário separado:
+
+`REPROVADO`
+
+Confirmar histórico.
+
+---
+
+# 39. FALHA ENTRE IMPORTAÇÃO E CONFIRMAÇÃO
+
+Simular:
+
+ERP consulta pedido.
+
+ERP importa.
+
+Conexão é interrompida antes de:
+
+POST confirm.
+
+Depois ERP consulta novamente.
+
+Esperado:
+
+pedido ainda disponível.
+
+ERP deve poder reconhecer/reprocessar com segurança.
+
+Após confirmação:
+
+pedido sai da fila.
+
+---
+
+# 40. CONFIRMAÇÃO REPETIDA
+
+Simular:
+
+ERP confirma.
+
+Resposta HTTP é perdida.
+
+ERP envia a mesma confirmação novamente.
+
+Esperado:
+
+`ALREADY_CONFIRMED`
+
+ou comportamento idempotente equivalente.
+
+Nenhuma duplicidade.
+
+Nenhum histórico incorreto.
+
+---
+
+# 41. CONFLITO ERP
+
+Testar:
+
+Pedido já associado ao ERP:
+
+`123456`
+
+Enviar confirmação:
+
+`999999`
+
+Esperado:
+
+HTTP 409.
+
+Código:
+
+`ERP_ORDER_NUMBER_CONFLICT`
+
+Não sobrescrever.
+
+---
+
+# 42. EVENTOS FORA DE ORDEM
+
+Enviar:
+
+APROVADO em T2.
+
+Depois:
+
+EM_ANALISE em T1.
+
+Esperado:
+
+evento T1 ignorado.
+
+Motivo:
+
+`STALE_SOURCE_VERSION`
+
+Status permanece APROVADO.
+
+---
+
+# 43. EVENTO REPETIDO
+
+Enviar:
+
+APROVADO T2.
+
+Enviar novamente:
+
+APROVADO com versão equivalente.
+
+Não duplicar histórico.
+
+Retornar comportamento idempotente.
+
+---
+
+# 44. BACKUP
+
+Definir estratégia real para PostgreSQL.
+
+Documentar:
+
+* responsável pelo backup;
+* frequência;
+* retenção;
+* local;
+* criptografia quando aplicável;
+* processo de recuperação.
+
+Não declarar backup configurado apenas por assumir que a plataforma possui backup.
+
+Verificar a solução realmente disponível no ambiente escolhido.
+
+---
+
+# 45. RESTAURAÇÃO
+
+Criar:
+
+`docs/DISASTER_RECOVERY.md`
+
+Documentar procedimento de restauração.
+
+Quando possível validar em homologação:
+
+backup
+→ restauração em banco temporário
+→ migrations verificadas
+→ aplicação conectada
+→ login
+→ clientes
+→ produtos
+→ pedido histórico.
+
+Registrar o resultado.
+
+---
+
+# 46. MIGRATIONS EM PRODUÇÃO
+
+Criar procedimento seguro.
+
+Exemplo:
+
+1. verificar backup;
+2. executar migration;
+3. validar resultado;
+4. iniciar nova versão;
+5. executar `/health`;
+6. executar `/ready`;
+7. smoke test.
+
+Documentar rollback.
+
+Nunca apagar migrations antigas.
+
+---
+
+# 47. DADOS DEMO
+
+Auditar banco e código.
+
+Produção não deve criar automaticamente:
+
+* usuários demo;
+* representantes demo;
+* clientes demo;
+* produtos demo;
+* tabelas demo;
+* pedidos demo.
+
+Fixtures devem ficar restritas a desenvolvimento/testes.
+
+---
+
+# 48. ADMIN INICIAL
+
+Documentar criação do primeiro ADMIN.
+
+Não utilizar:
+
+* senha padrão;
+* usuário padrão conhecido;
+* credencial versionada.
+
+Usar processo administrativo seguro já existente ou criar comando seguro caso necessário.
+
+---
+
+# 49. DUPLO CLIQUE / DUPLO SUBMIT
+
+Revisar interface.
+
+Durante operações:
+
+* criar pedido;
+* adicionar item;
+* salvar;
+* finalizar;
+
+desabilitar ação enquanto requisição estiver em andamento.
+
+Isso melhora UX.
+
+O backend ainda deve garantir integridade independentemente do frontend.
+
+---
+
+# 50. TRATAMENTO DE ERROS NA INTERFACE
+
+Mostrar mensagens comerciais apropriadas.
+
+Exemplos:
+
+`PRICE_NOT_FOUND`
+
+→ Não existe preço disponível para este produto.
+
+`ORDER_ALREADY_SUBMITTED`
+
+→ Este pedido já foi finalizado.
+
+`ORDER_VERSION_CONFLICT`
+
+→ O pedido foi alterado. Atualize a página e tente novamente.
+
+Não mostrar stack trace ou mensagem PostgreSQL.
+
+---
+
+# 51. ACESSIBILIDADE
+
+Revisar:
+
+* labels;
+* navegação por teclado;
+* foco;
+* dialogs;
+* mensagens de erro;
+* contraste;
+* botões;
+* campos obrigatórios.
+
+Corrigir problemas relevantes.
+
+Não exigir certificação formal.
+
+---
+
+# 52. RESPONSIVIDADE
+
+Revalidar:
+
+## Mobile
+
+`390 × 844`
+
+## Tablet
+
+viewport apropriada, por exemplo:
+
+`768 × 1024`
+
+## Desktop
+
+`1440 × 1000`
+
+Validar:
+
+* login;
+* dashboard;
+* clientes;
+* produtos;
+* pedidos;
+* novo orçamento;
+* itens;
+* histórico.
+
+Nenhum overflow horizontal indevido.
+
+---
+
+# 53. NAVEGADORES
+
+Quando suportado pelo ambiente de testes:
+
+* Chromium;
+* Firefox;
+* WebKit.
+
+Registrar qualquer limitação do ambiente.
+
+Não declarar navegador validado se não foi realmente executado.
+
+---
+
+# 54. OBSERVABILIDADE
+
+Definir como identificar:
+
+* erro 5xx;
+* aplicação indisponível;
+* banco indisponível;
+* falhas ERP;
+* conflitos ERP;
+* lentidão.
+
+Preferir recursos existentes da plataforma quando suficientes.
+
+Não contratar/integrar serviço externo pago sem autorização.
+
+---
+
+# 55. ALERTAS
+
+Propor ou configurar, quando a plataforma permitir sem dependência externa adicional:
+
+* aplicação indisponível;
+* readiness falhando;
+* aumento de 5xx;
+* falhas repetidas ERP.
+
+Se não for possível configurar diretamente, documentar a recomendação.
+
+---
+
+# 56. RETENÇÃO
+
+Definir política para:
+
+* logs técnicos;
+* integration_logs;
+* order_status_history.
+
+Não apagar histórico comercial sem regra definida.
+
+Se for necessária limpeza futura de logs técnicos, documentar.
+
+---
+
+# 57. DEPLOYMENT
+
+Criar:
+
+`docs/DEPLOYMENT.md`
+
+Documentar:
+
+* DEVELOPMENT;
+* HOMOLOGATION;
+* PRODUCTION;
+* variáveis;
+* Secrets;
+* build;
+* migrations;
+* deploy;
+* health;
+* readiness;
+* criação ADMIN;
+* rollback;
+* backup;
+* smoke test.
+
+---
+
+# 58. HOMOLOGAÇÃO ERP
+
+Criar:
+
+`docs/ERP_HOMOLOGATION.md`
+
+Checklist:
+
+* [ ] API Key
+* [ ] representatives
+* [ ] customers
+* [ ] products
+* [ ] payment terms
+* [ ] carriers
+* [ ] price tables
+* [ ] preços
+* [ ] pedido
+* [ ] itens
+* [ ] snapshots
+* [ ] confirmação
+* [ ] idempotência
+* [ ] conflito
+* [ ] EM_ANALISE
+* [ ] APROVADO
+* [ ] FECHADO
+* [ ] FATURADO
+* [ ] REPROVADO
+* [ ] timestamp antigo
+* [ ] correlation ID
+* [ ] precisão financeira
+
+---
+
+# 59. CHECKLIST DE GO-LIVE
+
+Criar:
+
+`docs/GO_LIVE_CHECKLIST.md`
+
+No mínimo:
+
+* [ ] Ambiente de produção criado
+* [ ] Banco de produção configurado
+* [ ] Backup confirmado
+* [ ] Restore testado ou procedimento validado
+* [ ] Secrets configurados
+* [ ] SESSION_SECRET forte
+* [ ] ERP_API_KEY exclusiva de produção
+* [ ] BETTER_AUTH_URL correto
+* [ ] CORS correto
+* [ ] Headers de segurança ativos
+* [ ] Rate limiting ativo
+* [ ] ADMIN criado
+* [ ] Dados demo ausentes
+* [ ] Migrations aplicadas
+* [ ] Drift inexistente
+* [ ] `/health` aprovado
+* [ ] `/ready` aprovado
+* [ ] Login aprovado
+* [ ] Isolamento de representantes aprovado
+* [ ] PricingService aprovado
+* [ ] Cálculo financeiro aprovado
+* [ ] Pedido aprovado
+* [ ] ERP homologado
+* [ ] Idempotência aprovada
+* [ ] Logs aprovados
+* [ ] Mobile aprovado
+* [ ] Tablet aprovado
+* [ ] Desktop aprovado
+* [ ] Rollback documentado
+
+---
+
+# 60. SMOKE TEST DE PRODUÇÃO
+
+Preparar um roteiro curto e seguro para executar após deploy.
+
+Validar:
+
+1. `/health`;
+2. `/ready`;
+3. login;
+4. dashboard;
+5. consulta de cliente;
+6. consulta de produto;
+7. consulta de pedidos.
+
+Não criar pedido real de cliente durante smoke test de produção sem autorização.
+
+A integração ERP deve possuir teste próprio previamente definido para homologação.
+
+---
+
+# 61. NÃO IMPLEMENTAR NESTA FASE
+
+Não implementar:
+
+* estoque;
+* comissão;
+* NF-e;
+* CT-e;
+* financeiro;
+* contas a receber;
+* rastreamento;
+* dashboard BI;
+* favoritos;
+* cópia de pedidos;
+* novas regras de preço;
+* novos descontos;
+* alteração de pedidos finalizados;
+* PWA/offline.
+
+Não iniciar qualquer uma dessas funcionalidades automaticamente.
+
+---
+
+# 62. REGRESSÃO COMPLETA
+
+Após todas as correções da Fase 6 executar novamente todos os testes existentes das Fases 1–5.
+
+Nenhuma correção de segurança/performance pode quebrar comportamento previamente aprovado.
+
+Executar também novos testes da Fase 6.
+
+---
+
+# 63. CLASSIFICAÇÃO DE ACHADOS
+
+No relatório final classificar cada achado como:
+
+* CRITICAL
+* HIGH
+* MEDIUM
+* LOW
+* INFORMATIONAL
+
+Para cada problema real informar:
+
+* descrição;
+* impacto;
+* correção;
+* teste criado;
+* status final.
+
+Não exagerar gravidade.
+
+---
+
+# 64. NÃO ESCONDER PENDÊNCIAS
+
+Se algo não puder ser realmente validado no ambiente Replit, informar explicitamente.
+
+Exemplos:
+
+* backup externo;
+* restore real;
+* navegador não disponível;
+* ERP real indisponível;
+* domínio de produção ainda inexistente;
+* certificado/TLS dependente da plataforma.
+
+Não marcar como aprovado algo que apenas foi presumido.
+
+---
+
+# 65. CRITÉRIO DE APROVAÇÃO
+
+A Fase 6 somente poderá ser considerada concluída quando:
+
+* testes automatizados passarem;
+* builds passarem;
+* migrations estiverem consistentes;
+* não houver vulnerabilidade CRITICAL/HIGH conhecida sem tratamento;
+* isolamento de representantes estiver aprovado;
+* precisão financeira estiver aprovada;
+* integração ERP estiver aprovada tecnicamente;
+* documentação de deploy estiver pronta;
+* riscos restantes estiverem claramente registrados.
+
+---
+
+# 66. IMPORTANTE — HOMOLOGAÇÃO REAL X SIMULADA
+
+Distinguir claramente:
+
+## HOMOLOGAÇÃO TÉCNICA
+
+Pode ser realizada com testes automatizados e simulação do ERP.
+
+## HOMOLOGAÇÃO REAL
+
+Exige comunicação com o ERP real e ambiente real de homologação.
+
+Se o ERP real não estiver disponível durante esta tarefa:
+
+NÃO declarar:
+
+`ERP real homologado`
+
+Declarar:
+
+`Integração tecnicamente pronta para homologação com ERP real.`
+
+---
+
+# 67. PRODUÇÃO
+
+Não declarar automaticamente:
+
+`PRONTO PARA PRODUÇÃO`
+
+apenas porque os testes locais passaram.
+
+Para considerar produção, verificar também:
+
+* ambiente;
+* Secrets;
+* domínio;
+* TLS;
+* banco;
+* backup;
+* restore;
+* ERP real;
+* procedimentos operacionais.
+
+Se essas condições externas não puderem ser verificadas:
+
+classificar como:
+
+`PRONTO PARA HOMOLOGAÇÃO`
+
+ou:
+
+`TECNICAMENTE PRONTO PARA GO-LIVE, PENDENTE DE VALIDAÇÕES EXTERNAS`
+
+conforme o caso.
+
+---
+
+# 68. RELATÓRIO FINAL
+
+Ao terminar apresentar um relatório consolidado com:
+
+## 1. Resultado geral
+
+Resumo da Fase 6.
+
+## 2. Segurança
+
+Informe:
+
+* achados;
+* gravidade;
+* correções;
+* pendências.
+
+## 3. Autenticação
+
+Resultado da revisão de sessão, login e autorização.
+
+## 4. Isolamento
+
+Resultado dos testes entre representantes.
+
+## 5. Banco
+
+Informe:
+
+* migrations;
+* drift;
+* constraints;
+* índices;
+* integridade.
+
+## 6. Precisão financeira
+
+Confirmar explicitamente:
+
+* unitários = até 6 casas;
+* quantidade = até 4 casas;
+* descontos = até 4 casas;
+* totais = exatamente 2 casas;
+* ROUND_HALF_UP;
+* pedido = soma dos itens arredondados.
+
+Apresentar novamente os casos:
+
+`2.994300 × 3 = 8.98`
+
+`1.667000 × 3 = 5.00`
+
+`8.98 + 5.00 = 13.98`
+
+## 7. Performance
+
+Apresentar medições realizadas.
+
+Não inventar números.
+
+## 8. ERP
+
+Separar:
+
+* testes simulados;
+* testes reais, se existirem.
+
+Informar resultados de:
+
+* cadastros;
+* preços;
+* pedidos;
+* confirmação;
+* status;
+* idempotência;
+* conflitos;
+* timestamps.
+
+## 9. Logs e observabilidade
+
+Explicar:
+
+* request_id;
+* correlation_id;
+* logs;
+* health;
+* readiness.
+
+## 10. Backup e recuperação
+
+Informar:
+
+* estratégia;
+* se backup foi realmente executado;
+* se restore foi realmente testado.
+
+## 11. Interface
+
+Informar:
+
+* mobile;
+* tablet;
+* desktop;
+* acessibilidade;
+* navegadores realmente testados.
+
+## 12. Testes
+
+Informar:
+
+* total;
+* aprovados;
+* reprovados;
+* novos testes criados.
+
+## 13. Builds
+
+Informar:
+
+* typecheck;
+* API;
+* frontend;
+* OpenAPI/codegen;
+* migrations;
+* drift.
+
+## 14. Documentação
+
+Confirmar:
+
+* DEPLOYMENT.md;
+* ERP_HOMOLOGATION.md;
+* GO_LIVE_CHECKLIST.md;
+* DISASTER_RECOVERY.md;
+* demais documentos atualizados.
+
+## 15. Riscos restantes
+
+Listar todas as pendências externas e internas.
+
+## 16. Classificação final
+
+Escolher apenas uma:
+
+**NÃO PRONTO**
+
+ou
+
+**PRONTO PARA HOMOLOGAÇÃO**
+
+ou
+
+**TECNICAMENTE PRONTO PARA GO-LIVE, PENDENTE DE VALIDAÇÕES EXTERNAS**
+
+ou
+
+**PRONTO PARA PRODUÇÃO**
+
+Justificar a classificação.
+
+---
+
+# 69. ENCERRAMENTO
+
+Se todos os requisitos técnicos internos estiverem aprovados, mas ainda depender de ERP real, infraestrutura definitiva, backup/restore ou configurações externas, utilizar:
+
+**Fase 6 concluída tecnicamente. Sistema pronto para homologação final e preparação de go-live.**
+
+Se todos os requisitos, inclusive externos, tiverem sido efetivamente comprovados, poderá utilizar:
+
+**Fase 6 concluída. Sistema aprovado para produção.**
+
+Não declarar aprovação de algo que não foi efetivamente testado.
+
+Depois PARE.
+
+NÃO iniciar Fase 7.
+
+NÃO implementar novas funcionalidades.
