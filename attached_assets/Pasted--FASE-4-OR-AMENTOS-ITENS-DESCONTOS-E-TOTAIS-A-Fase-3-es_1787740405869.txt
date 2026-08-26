@@ -1,0 +1,1431 @@
+# FASE 4 — ORÇAMENTOS, ITENS, DESCONTOS E TOTAIS
+
+A Fase 3 está concluída e aprovada.
+
+Agora implemente a criação e digitação de orçamentos/pedidos.
+
+Nesta fase implementar:
+
+* capa do orçamento;
+* itens;
+* inclusão, edição e remoção de produtos;
+* utilização do `PricingService` existente;
+* quatro descontos em cascata;
+* preço especial;
+* snapshots comerciais;
+* cálculo de totais;
+* revisão;
+* finalização do orçamento;
+* telas responsivas de digitação e consulta.
+
+IMPORTANTE:
+
+Ainda NÃO implementar:
+
+* consulta de pedidos pelo ERP;
+* confirmação de importação pelo ERP;
+* atualização de status comercial pelo ERP;
+* faturamento;
+* PWA.
+
+Esses itens pertencem à Fase 5.
+
+---
+
+# 1. TERMINOLOGIA
+
+Internamente utilizar a entidade:
+
+`orders`
+
+Na interface, durante a digitação, apresentar como:
+
+`Orçamento`
+
+Um orçamento em edição é:
+
+`internal_status = DRAFT`
+
+Quando o representante finalizar:
+
+`internal_status = SUBMITTED`
+
+SUBMITTED significa que o pedido está concluído no sistema web e ficará disponível futuramente para integração com o ERP.
+
+---
+
+# 2. TABELA ORDERS
+
+Criar tabela:
+
+`orders`
+
+Campos mínimos:
+
+* `id UUID`
+* `internal_number`
+* `representative_id`
+* `customer_id`
+* `payment_term_id`
+* `carrier_id nullable`
+* `notes nullable`
+
+Descontos da capa:
+
+* `discount1 NUMERIC(7,4)`
+* `discount2 NUMERIC(7,4)`
+* `discount3 NUMERIC(7,4)`
+* `discount4 NUMERIC(7,4)`
+
+Totais:
+
+* `gross_total NUMERIC(20,2)`
+* `net_total NUMERIC(20,2)`
+
+Status:
+
+* `internal_status`
+
+Campos preparados para integração futura:
+
+* `erp_status nullable`
+* `erp_order_number nullable`
+* `submitted_at nullable`
+* `erp_synced_at nullable`
+
+Auditoria:
+
+* `created_by_user_id`
+* `created_at`
+* `updated_at`
+
+Criar foreign keys e índices adequados.
+
+---
+
+# 3. NÚMERO INTERNO DO ORÇAMENTO
+
+Todo orçamento deverá possuir:
+
+`internal_number`
+
+O número deve ser gerado exclusivamente pelo servidor.
+
+Nunca confiar em número vindo do frontend.
+
+Requisitos:
+
+* único;
+* sequencial ou equivalente seguro;
+* resistente a concorrência.
+
+NÃO utilizar:
+
+`MAX(numero) + 1`
+
+sem proteção adequada.
+
+Preferir:
+
+* sequence PostgreSQL;
+* identity;
+* ou mecanismo transacional equivalente.
+
+Documentar a estratégia adotada.
+
+---
+
+# 4. STATUS INTERNO
+
+Utilizar nesta fase:
+
+* `DRAFT`
+* `SUBMITTED`
+
+## DRAFT
+
+Pode:
+
+* alterar capa;
+* alterar descontos;
+* incluir itens;
+* editar itens;
+* remover itens.
+
+## SUBMITTED
+
+Não pode:
+
+* alterar capa;
+* alterar descontos;
+* incluir itens;
+* editar itens;
+* remover itens.
+
+O status ERP não deve controlar edição.
+
+---
+
+# 5. PERMISSÕES
+
+## REPRESENTATIVE
+
+Pode:
+
+* criar orçamento apenas para cliente próprio;
+* visualizar apenas seus pedidos;
+* alterar apenas seus pedidos DRAFT;
+* submeter apenas seus próprios pedidos.
+
+Não pode alterar pedidos SUBMITTED.
+
+## ADMIN
+
+Pode:
+
+* visualizar todos os pedidos.
+
+Não precisa editar pedidos de representantes nesta fase, salvo necessidade técnica justificada.
+
+Nunca aceitar `representative_id` do frontend.
+
+Para REPRESENTATIVE utilizar:
+
+`getAuthenticatedRepresentative()`
+
+---
+
+# 6. CRIAÇÃO DA CAPA
+
+Fluxo:
+
+Representante autenticado
+
+→ Novo orçamento
+
+→ Selecionar cliente
+
+→ Selecionar condição de pagamento
+
+→ Selecionar transportadora
+
+→ Informar observação
+
+→ Informar descontos
+
+Ao criar:
+
+* `representative_id` vem da sessão;
+* cliente deve pertencer ao representante;
+* cliente deve estar ativo;
+* condição de pagamento deve estar ativa;
+* transportadora deve estar ativa quando informada;
+* `internal_status = DRAFT`.
+
+---
+
+# 7. DESCONTOS DA CAPA
+
+Campos:
+
+* `discount1`
+* `discount2`
+* `discount3`
+* `discount4`
+
+Tipo:
+
+`NUMERIC(7,4)`
+
+Todos podem ser zero.
+
+Validação inicial:
+
+`0 <= desconto <= 100`
+
+Se houver regra mais restritiva futuramente, será implementada depois.
+
+---
+
+# 8. DISCOUNT SERVICE
+
+Implementar de fato:
+
+`DiscountService`
+
+Os quatro descontos devem ser aplicados em cascata.
+
+Fórmula:
+
+`Preço × (1 - D1/100) × (1 - D2/100) × (1 - D3/100) × (1 - D4/100)`
+
+Exemplo:
+
+Preço inicial:
+
+`100.000000`
+
+Descontos:
+
+* D1 = 10
+* D2 = 5
+* D3 = 3
+* D4 = 2
+
+Cálculo:
+
+`100 × 0,90 = 90`
+
+`90 × 0,95 = 85,50`
+
+`85,50 × 0,97 = 82,935`
+
+`82,935 × 0,98 = 81,276300`
+
+NÃO calcular:
+
+`100 - 20%`
+
+Nunca somar os percentuais.
+
+---
+
+# 9. REGRA DE PRECISÃO FINANCEIRA
+
+Esta regra é obrigatória.
+
+## Preços unitários
+
+Manter até 6 casas decimais:
+
+* `suggested_unit_price NUMERIC(18,6)`
+* `effective_unit_price NUMERIC(18,6)`
+* `special_unit_price NUMERIC(18,6)`
+* `net_unit_price NUMERIC(18,6)`
+
+## Quantidade
+
+Manter:
+
+`quantity NUMERIC(18,4)`
+
+## Descontos
+
+Manter:
+
+`NUMERIC(7,4)`
+
+## Totais dos itens
+
+Obrigatoriamente 2 casas:
+
+* `gross_total NUMERIC(20,2)`
+* `net_total NUMERIC(20,2)`
+
+## Totais do pedido
+
+Obrigatoriamente 2 casas:
+
+* `orders.gross_total NUMERIC(20,2)`
+* `orders.net_total NUMERIC(20,2)`
+
+---
+
+# 10. POLÍTICA DE ARREDONDAMENTO
+
+Os cálculos intermediários devem preservar a precisão decimal.
+
+O TOTAL DO ITEM deve ser arredondado para 2 casas.
+
+Exemplo:
+
+Preço unitário:
+
+`2.994300`
+
+Quantidade:
+
+`3`
+
+Cálculo:
+
+`2.994300 × 3 = 8.982900`
+
+Total armazenado:
+
+`8.98`
+
+Outro exemplo:
+
+Preço:
+
+`1.667000`
+
+Quantidade:
+
+`3`
+
+Resultado:
+
+`5.001000`
+
+Total armazenado:
+
+`5.00`
+
+Não utilizar `Math.round()` ou ponto flutuante JavaScript de forma ingênua.
+
+Reutilizar a estratégia decimal segura adotada na Fase 3.
+
+Documentar o modo de arredondamento.
+
+---
+
+# 11. TOTAL DO PEDIDO
+
+O total do pedido deve ser calculado pela soma dos totais dos itens JÁ ARREDONDADOS PARA 2 CASAS.
+
+Exemplo:
+
+Item 1:
+
+`8.98`
+
+Item 2:
+
+`5.00`
+
+Pedido:
+
+`8.98 + 5.00 = 13.98`
+
+Regra:
+
+`order.gross_total = SUM(order_items.gross_total)`
+
+`order.net_total = SUM(order_items.net_total)`
+
+Não recalcular o total do pedido a partir de valores unitários/intermediários não arredondados.
+
+Essa regra é obrigatória.
+
+---
+
+# 12. TABELA ORDER_ITEMS
+
+Criar:
+
+`order_items`
+
+Campos mínimos:
+
+* `id UUID`
+* `order_id`
+* `product_id`
+
+Snapshot ERP:
+
+* `group_code`
+* `type_code`
+* `product_code`
+* `reference_code`
+
+Snapshot comercial:
+
+* `product_code_snapshot`
+* `description_snapshot`
+* `packaging_snapshot`
+* `width_snapshot`
+* `color_snapshot`
+
+Quantidade:
+
+* `quantity NUMERIC(18,4)`
+
+Preço sugerido:
+
+* `suggested_unit_price NUMERIC(18,6)`
+* `suggested_price_origin`
+* `suggested_price_table_id`
+* `suggested_price_table_erp_code`
+
+Preço efetivo:
+
+* `effective_unit_price NUMERIC(18,6)`
+* `effective_price_origin`
+
+Preço especial:
+
+* `is_special_price`
+* `special_unit_price NUMERIC(18,6) nullable`
+
+Descontos:
+
+* `discount1 NUMERIC(7,4)`
+* `discount2 NUMERIC(7,4)`
+* `discount3 NUMERIC(7,4)`
+* `discount4 NUMERIC(7,4)`
+* `discounts_applied`
+
+Resultado:
+
+* `net_unit_price NUMERIC(18,6)`
+* `gross_total NUMERIC(20,2)`
+* `net_total NUMERIC(20,2)`
+
+Auditoria:
+
+* `created_at`
+* `updated_at`
+
+---
+
+# 13. SNAPSHOT DO PRODUTO
+
+Ao incluir o produto, congelar os dados relevantes existentes naquele momento.
+
+Salvar pelo menos:
+
+* grupo;
+* tipo;
+* produto;
+* referência;
+* código;
+* descrição;
+* embalagem;
+* largura;
+* cor.
+
+Se o ERP alterar o produto depois, o item histórico NÃO muda.
+
+---
+
+# 14. PREÇO SUGERIDO
+
+Ao incluir produto:
+
+1. validar produto ativo;
+2. chamar o `PricingService`;
+3. usar:
+
+   * `customerId` do pedido;
+   * `productId`;
+4. obter o preço;
+5. congelar o resultado no item.
+
+Salvar:
+
+* `suggested_unit_price`
+* `suggested_price_origin`
+* `suggested_price_table_id`
+* `suggested_price_table_erp_code`
+
+Nunca consultar a tabela de preços novamente para reconstruir preço histórico.
+
+---
+
+# 15. PREÇO NÃO ENCONTRADO
+
+Se:
+
+`PricingService.found = false`
+
+não incluir item automaticamente.
+
+Nunca usar preço zero.
+
+Retornar erro de negócio explícito:
+
+`PRICE_NOT_FOUND`
+
+Interface:
+
+`Não existe preço disponível para este produto e cliente.`
+
+---
+
+# 16. ORIGEM DO PREÇO
+
+Manter duas origens.
+
+## suggested_price_origin
+
+Valores:
+
+* CUSTOMER
+* REPRESENTATIVE
+* STANDARD
+
+## effective_price_origin
+
+Valores:
+
+* CUSTOMER
+* REPRESENTATIVE
+* STANDARD
+* SPECIAL
+
+Item normal:
+
+`suggested_price_origin = CUSTOMER`
+
+`effective_price_origin = CUSTOMER`
+
+Item especial:
+
+`suggested_price_origin = CUSTOMER`
+
+`effective_price_origin = SPECIAL`
+
+---
+
+# 17. PREÇO ESPECIAL
+
+Permitir preço especial no item.
+
+Validações:
+
+* maior que zero;
+* até 6 casas decimais;
+* nunca zero;
+* nunca negativo.
+
+Quando especial:
+
+`is_special_price = true`
+
+`special_unit_price = valor informado`
+
+`effective_unit_price = special_unit_price`
+
+`effective_price_origin = SPECIAL`
+
+---
+
+# 18. PREÇO ESPECIAL NÃO RECEBE DESCONTOS
+
+Esta regra é obrigatória.
+
+Quando item possui preço especial:
+
+* NÃO aplicar D1;
+* NÃO aplicar D2;
+* NÃO aplicar D3;
+* NÃO aplicar D4.
+
+Mesmo assim, copiar os quatro descontos da capa para o item para auditoria.
+
+Exemplo:
+
+Pedido:
+
+D1 = 10
+
+D2 = 5
+
+D3 = 3
+
+D4 = 2
+
+Item especial:
+
+* `discount1 = 10`
+* `discount2 = 5`
+* `discount3 = 3`
+* `discount4 = 2`
+* `discounts_applied = false`
+
+E:
+
+`net_unit_price = special_unit_price`
+
+---
+
+# 19. ITEM NORMAL
+
+Para item sem preço especial:
+
+`effective_unit_price = suggested_unit_price`
+
+`effective_price_origin = suggested_price_origin`
+
+`discounts_applied = true`
+
+Aplicar D1 → D2 → D3 → D4.
+
+Resultado unitário líquido:
+
+até 6 casas decimais.
+
+---
+
+# 20. CÁLCULO DO ITEM NORMAL
+
+Fluxo:
+
+1. obter `effective_unit_price` com até 6 casas;
+2. aplicar descontos em cascata;
+3. obter `net_unit_price` com até 6 casas;
+4. calcular total bruto;
+5. calcular total líquido;
+6. arredondar os totais para 2 casas.
+
+Fórmulas:
+
+`gross_total = ROUND(effective_unit_price × quantity, 2)`
+
+`net_total = ROUND(net_unit_price × quantity, 2)`
+
+---
+
+# 21. CÁLCULO DO ITEM ESPECIAL
+
+Para item especial:
+
+`effective_unit_price = special_unit_price`
+
+`net_unit_price = special_unit_price`
+
+`discounts_applied = false`
+
+Depois:
+
+`gross_total = ROUND(special_unit_price × quantity, 2)`
+
+`net_total = ROUND(special_unit_price × quantity, 2)`
+
+---
+
+# 22. ALTERAÇÃO DOS DESCONTOS DA CAPA
+
+Enquanto DRAFT:
+
+representante pode alterar:
+
+* D1;
+* D2;
+* D3;
+* D4.
+
+Quando alterar:
+
+recalcular todos os itens dentro de transação.
+
+## Item normal
+
+* atualizar descontos copiados;
+* recalcular net_unit_price;
+* recalcular gross_total quando necessário;
+* recalcular net_total.
+
+## Item especial
+
+* atualizar descontos copiados;
+* manter `discounts_applied=false`;
+* não alterar preço efetivo;
+* não aplicar desconto.
+
+Depois recalcular os totais do pedido.
+
+---
+
+# 23. ALTERAÇÃO DE PREÇO ESPECIAL
+
+Permitir:
+
+* transformar item normal em especial;
+* alterar preço especial;
+* remover preço especial.
+
+## Ao ativar preço especial
+
+* `is_special_price=true`
+* `effective_price_origin=SPECIAL`
+* `discounts_applied=false`
+
+## Ao remover preço especial
+
+* `is_special_price=false`
+* `special_unit_price=null`
+* `effective_unit_price=suggested_unit_price`
+* `effective_price_origin=suggested_price_origin`
+* `discounts_applied=true`
+
+Depois reaplicar descontos.
+
+---
+
+# 24. ALTERAÇÃO DE QUANTIDADE
+
+Enquanto DRAFT:
+
+permitir alterar quantidade.
+
+Validação:
+
+`quantity > 0`
+
+Ao alterar:
+
+* manter suggested_unit_price congelado;
+* manter origem congelada;
+* recalcular totais do item;
+* recalcular pedido.
+
+Não consultar novamente tabela de preço.
+
+---
+
+# 25. REMOÇÃO DE ITEM
+
+Enquanto DRAFT:
+
+permitir remover item.
+
+Depois:
+
+recalcular:
+
+* gross_total;
+* net_total.
+
+SUBMITTED:
+
+não permitir remoção.
+
+---
+
+# 26. TROCA DE CLIENTE
+
+Permitir troca de cliente somente se o pedido ainda não possuir itens.
+
+Se possuir itens:
+
+retornar:
+
+`ORDER_HAS_ITEMS`
+
+Não fazer repricing automático nesta fase.
+
+---
+
+# 27. TROCA DE REPRESENTANTE
+
+Nunca permitir.
+
+O representante vem da sessão.
+
+---
+
+# 28. FINALIZAÇÃO DO ORÇAMENTO
+
+Criar ação de submit.
+
+Antes de submeter validar:
+
+* pedido DRAFT;
+* cliente ativo;
+* representante ativo;
+* condição válida;
+* pelo menos 1 item;
+* todas quantidades > 0;
+* todos preços válidos;
+* totais consistentes.
+
+Depois:
+
+`internal_status = SUBMITTED`
+
+`submitted_at = now()`
+
+A partir daí bloquear edição.
+
+Executar em transação.
+
+---
+
+# 29. CONCORRÊNCIA
+
+Proteger contra alterações simultâneas.
+
+Evitar:
+
+* edição após submit;
+* totais corrompidos;
+* dupla alteração sobrescrevendo silenciosamente;
+* submit concorrente com alteração.
+
+Utilizar:
+
+* transações;
+* locking;
+* versionamento otimista;
+* ou estratégia equivalente.
+
+Explique a solução implementada.
+
+---
+
+# 30. API WEB — ORDERS
+
+Criar endpoints equivalentes a:
+
+POST `/api/v1/orders`
+
+GET `/api/v1/orders`
+
+GET `/api/v1/orders/:id`
+
+PATCH `/api/v1/orders/:id`
+
+POST `/api/v1/orders/:id/submit`
+
+REPRESENTATIVE:
+
+somente próprios pedidos.
+
+ADMIN:
+
+pode consultar todos.
+
+Listagem paginada no servidor.
+
+---
+
+# 31. API WEB — ITEMS
+
+Criar:
+
+POST `/api/v1/orders/:id/items`
+
+PATCH `/api/v1/orders/:id/items/:itemId`
+
+DELETE `/api/v1/orders/:id/items/:itemId`
+
+Toda alteração deve:
+
+* validar propriedade;
+* exigir DRAFT;
+* recalcular no servidor.
+
+---
+
+# 32. LISTAGEM — MEUS PEDIDOS
+
+Criar tela:
+
+`Meus Pedidos`
+
+Mostrar:
+
+* número;
+* cliente;
+* data;
+* valor;
+* status.
+
+Filtros:
+
+* número;
+* cliente;
+* status;
+* período, se simples.
+
+Paginação no servidor.
+
+---
+
+# 33. NOVO ORÇAMENTO — CAPA
+
+Criar interface mobile-first.
+
+Campos:
+
+* Cliente
+* Condição de pagamento
+* Transportadora
+* Observação
+* D1
+* D2
+* D3
+* D4
+
+Ação:
+
+`Salvar e adicionar produtos`
+
+---
+
+# 34. PESQUISA DE CLIENTE
+
+Não carregar todos os clientes.
+
+Utilizar pesquisa remota.
+
+Pesquisar por:
+
+* código;
+* CNPJ/CPF;
+* razão social;
+* nome fantasia.
+
+Representante só vê próprios clientes.
+
+---
+
+# 35. PESQUISA DE PRODUTO
+
+Permitir:
+
+* Grupo;
+* Tipo;
+* Produto;
+* Referência;
+* descrição.
+
+Reutilizar ProductService e APIs existentes.
+
+Não duplicar lógica de pesquisa.
+
+---
+
+# 36. INCLUSÃO DO PRODUTO
+
+Depois de selecionar o produto mostrar:
+
+* descrição;
+* embalagem;
+* largura;
+* cor;
+* preço sugerido;
+* origem do preço;
+* quantidade;
+* preço especial.
+
+Exemplo:
+
+Produto:
+
+`Fita Cetim`
+
+Preço sugerido:
+
+`R$ 3,250000`
+
+Origem:
+
+`Tabela do Cliente`
+
+Quantidade:
+
+`10`
+
+Preço especial:
+
+opcional.
+
+---
+
+# 37. PREÇO ESPECIAL NA INTERFACE
+
+Quando preenchido:
+
+mostrar aviso claro:
+
+`Preço especial: os descontos da capa não serão aplicados neste item.`
+
+---
+
+# 38. LISTA DE ITENS
+
+## Desktop
+
+Utilizar tabela.
+
+Mostrar:
+
+* produto;
+* quantidade;
+* preço sugerido;
+* preço efetivo;
+* descontos;
+* preço líquido;
+* total;
+* ações.
+
+## Mobile
+
+Utilizar cards ou layout responsivo.
+
+Evitar tabela larga com scroll horizontal excessivo.
+
+---
+
+# 39. FORMATAÇÃO DOS VALORES NA INTERFACE
+
+Preço unitário:
+
+pode exibir até 6 casas decimais quando necessário.
+
+Exemplo:
+
+`R$ 2,994300`
+
+Totais:
+
+sempre exibir exatamente 2 casas decimais.
+
+Exemplos:
+
+`R$ 8,98`
+
+`R$ 1.250,40`
+
+Utilizar padrão brasileiro de apresentação:
+
+`pt-BR`
+
+Importante:
+
+a formatação visual não deve alterar o valor armazenado.
+
+---
+
+# 40. RESUMO DO ORÇAMENTO
+
+Mostrar:
+
+* Valor bruto
+* Valor líquido
+
+Sempre com 2 casas decimais.
+
+Mostrar também:
+
+* D1
+* D2
+* D3
+* D4
+
+---
+
+# 41. FINALIZAÇÃO NA INTERFACE
+
+Botão:
+
+`Finalizar pedido`
+
+Antes:
+
+mostrar confirmação.
+
+Depois de finalizar:
+
+* bloquear edição;
+* apresentar status amigável;
+* atualizar/redirecionar interface.
+
+Não enviar ainda para ERP.
+
+---
+
+# 42. TESTES — DISCOUNT SERVICE
+
+Testar:
+
+1. nenhum desconto;
+2. apenas D1;
+3. D1 + D2;
+4. quatro descontos;
+5. cascata correta;
+6. confirmar que percentuais não são somados;
+7. precisão decimal;
+8. desconto 0;
+9. desconto 100.
+
+---
+
+# 43. TESTES — ARREDONDAMENTO
+
+Testar obrigatoriamente:
+
+## Caso 1
+
+Preço:
+
+`2.994300`
+
+Quantidade:
+
+`3`
+
+Total esperado:
+
+`8.98`
+
+## Caso 2
+
+Preço:
+
+`1.667000`
+
+Quantidade:
+
+`3`
+
+Total esperado:
+
+`5.00`
+
+## Soma do pedido
+
+Itens:
+
+`8.98`
+
+`5.00`
+
+Pedido esperado:
+
+`13.98`
+
+Confirmar que utiliza:
+
+`SUM(totais dos itens arredondados)`
+
+e NÃO:
+
+`ROUND(SUM(valores intermediários), 2)`
+
+---
+
+# 44. TESTES — ITEM NORMAL
+
+10. PricingService retorna CUSTOMER;
+11. item congela preço CUSTOMER;
+12. item normal aplica descontos;
+13. quantidade altera total;
+14. alteração de desconto recalcula item;
+15. alteração da tabela de preço não modifica item já incluído;
+16. total do item sempre possui 2 casas.
+
+---
+
+# 45. TESTES — PREÇO ESPECIAL
+
+17. item especial preserva preço sugerido;
+18. effective origin = SPECIAL;
+19. descontos não são aplicados;
+20. descontos da capa permanecem copiados;
+21. alteração dos descontos não altera preço líquido especial;
+22. remoção de preço especial retorna ao preço sugerido;
+23. descontos voltam a ser aplicados;
+24. total especial é arredondado para 2 casas.
+
+---
+
+# 46. TESTES — PEDIDO
+
+25. representante cria pedido para cliente próprio;
+26. representante não cria para cliente alheio;
+27. representante não acessa pedido alheio;
+28. pedido vazio não pode ser submetido;
+29. pedido com item pode ser submetido;
+30. SUBMITTED não pode ser editado;
+31. SUBMITTED não aceita novo item;
+32. SUBMITTED não aceita remoção;
+33. troca de cliente com itens é bloqueada;
+34. totais são calculados no servidor;
+35. frontend não consegue forjar representative_id;
+36. frontend não consegue forjar total;
+37. total do pedido possui 2 casas.
+
+---
+
+# 47. TESTES — SNAPSHOT
+
+38. alteração posterior do produto não muda descrição do item;
+39. alteração posterior não muda códigos ERP;
+40. alteração posterior da tabela não muda suggested_unit_price.
+
+---
+
+# 48. TESTES — CONCORRÊNCIA
+
+41. duas alterações concorrentes não corrompem totais;
+42. submit concorrente com edição não deixa pedido inconsistente.
+
+---
+
+# 49. OPENAPI
+
+Atualizar:
+
+`lib/api-spec/openapi.yaml`
+
+Documentar:
+
+* orders;
+* order_items;
+* descontos;
+* preço especial;
+* submit;
+* erros;
+* campos decimais;
+* totais com 2 casas.
+
+Regenerar cliente React.
+
+---
+
+# 50. DOCUMENTAÇÃO
+
+Atualizar:
+
+* README.md
+* docs/ARCHITECTURE.md
+* docs/DATABASE.md
+* docs/BUSINESS_RULES.md
+* docs/ERP_API.md quando aplicável
+* docs/CHANGELOG.md
+
+BUSINESS_RULES.md deverá documentar explicitamente:
+
+* descontos em cascata;
+* preço especial;
+* snapshots;
+* congelamento de preço;
+* bloqueio após SUBMITTED;
+* preço unitário com 6 casas;
+* total de item com 2 casas;
+* total do pedido como soma dos itens arredondados.
+
+---
+
+# 51. NÃO IMPLEMENTAR AINDA
+
+Não implementar:
+
+* `/api/v1/erp/orders/submitted`;
+* confirmação de pedido pelo ERP;
+* status `EM_ANALISE`;
+* `APROVADO`;
+* `FECHADO`;
+* `FATURADO`;
+* `REPROVADO`;
+* histórico ERP;
+* integração efetiva dos pedidos com ERP.
+
+Esses itens pertencem à Fase 5.
+
+---
+
+# 52. VALIDAÇÃO FINAL
+
+Executar:
+
+* migrations;
+* drift check;
+* typecheck;
+* testes;
+* build API;
+* build frontend;
+* OpenAPI/codegen;
+* validação HTTP;
+* desktop;
+* mobile `390 × 844`.
+
+Não concluir enquanto houver erro.
+
+---
+
+# 53. RELATÓRIO FINAL
+
+Ao terminar apresentar:
+
+## Banco
+
+Tabelas e migrations criadas.
+
+## OrderService
+
+Explique:
+
+* criação;
+* edição;
+* inclusão;
+* remoção;
+* submit.
+
+## DiscountService
+
+Mostre a fórmula e exemplos.
+
+## Precisão financeira
+
+Explique claramente:
+
+* unitário = até 6 casas;
+* totais = 2 casas;
+* arredondamento do item;
+* soma dos itens no pedido.
+
+## PricingService
+
+Explique como foi reutilizado.
+
+## Item normal
+
+Dê exemplo completo.
+
+## Item especial
+
+Dê exemplo completo.
+
+## Snapshot
+
+Explique os dados congelados.
+
+## Totais
+
+Demonstre com valores reais que:
+
+`SUM(item.net_total) = order.net_total`
+
+## Segurança
+
+Explique isolamento do representante.
+
+## APIs
+
+Liste endpoints implementados.
+
+## Interface
+
+Explique desktop e mobile.
+
+## Testes
+
+Informe:
+
+* total;
+* aprovados;
+* reprovados.
+
+## Builds
+
+Informe resultados.
+
+## Pendências
+
+Informe qualquer decisão ainda necessária.
+
+## Conclusão
+
+Diga explicitamente:
+
+**Fase 4 concluída e pronta para iniciar a Fase 5.**
+
+Depois PARE.
+
+NÃO iniciar automaticamente a Fase 5.
