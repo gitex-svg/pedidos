@@ -1,0 +1,1176 @@
+# FASE 5 — INTEGRAÇÃO DE PEDIDOS COM ERP E STATUS
+
+A Fase 4 está concluída e aprovada.
+
+Agora implemente a integração de saída dos pedidos finalizados para o ERP e o retorno dos status comerciais.
+
+Nesta fase implementar:
+
+* disponibilização de pedidos `SUBMITTED` para o ERP;
+* consulta da capa e itens pelo ERP;
+* confirmação de importação;
+* número do pedido criado no ERP;
+* atualização de status comercial;
+* histórico de status;
+* idempotência;
+* proteção contra importação duplicada;
+* logs de integração;
+* exibição dos status na interface.
+
+IMPORTANTE:
+
+O ERP irá BUSCAR os pedidos no sistema web.
+
+O sistema web NÃO deverá obrigatoriamente enviar ativamente o pedido para o ERP.
+
+Fluxo principal:
+
+Sistema Web
+→ pedido SUBMITTED
+→ ERP consulta
+→ ERP importa
+→ ERP confirma
+→ ERP atualiza status posteriormente.
+
+---
+
+# 1. PRINCÍPIO DE INTEGRAÇÃO
+
+O sistema web é responsável por:
+
+* receber a digitação;
+* calcular os valores;
+* congelar os dados comerciais;
+* finalizar o pedido;
+* disponibilizar o pedido para integração.
+
+O ERP é responsável por:
+
+* buscar pedidos disponíveis;
+* importar o pedido;
+* gerar seu próprio número;
+* confirmar a importação;
+* informar alterações posteriores de status.
+
+Não duplicar regras comerciais da Fase 4 no ERP API.
+
+A API deve entregar o snapshot definitivo gravado no pedido.
+
+---
+
+# 2. STATUS INTERNO
+
+Manter:
+
+* `DRAFT`
+* `SUBMITTED`
+
+Não utilizar status comercial ERP como substituto do status interno.
+
+`SUBMITTED` significa:
+
+pedido finalizado pelo representante e disponível para o ERP.
+
+---
+
+# 3. SINCRONIZAÇÃO ERP
+
+Utilizar os campos já preparados:
+
+* `erp_order_number`
+* `erp_synced_at`
+* `erp_status`
+
+Se necessário, adicionar através de migration novos campos técnicos como:
+
+* `erp_import_id`
+* `erp_last_status_at`
+* `erp_last_sync_at`
+
+Somente adicionar campos realmente necessários.
+
+---
+
+# 4. STATUS ERP
+
+Implementar enum comercial com:
+
+* `EM_ANALISE`
+* `APROVADO`
+* `FECHADO`
+* `FATURADO`
+* `REPROVADO`
+
+Permitir inicialmente `NULL` enquanto o pedido ainda não tiver status informado pelo ERP.
+
+Na interface mostrar:
+
+* `EM_ANALISE` → Em análise
+* `APROVADO` → Aprovado
+* `FECHADO` → Fechado
+* `FATURADO` → Faturado
+* `REPROVADO` → Reprovado
+
+---
+
+# 5. NÃO MISTURAR STATUS
+
+Existem conceitos diferentes:
+
+## Status interno
+
+`DRAFT`
+`SUBMITTED`
+
+Representa o fluxo dentro do sistema web.
+
+## Situação de integração
+
+Representada por dados como:
+
+`erp_synced_at`
+`erp_order_number`
+
+## Status comercial ERP
+
+`EM_ANALISE`
+`APROVADO`
+`FECHADO`
+`FATURADO`
+`REPROVADO`
+
+Não misturar esses conceitos em um único enum.
+
+---
+
+# 6. HISTÓRICO DE STATUS
+
+Criar ou concluir:
+
+`order_status_history`
+
+Campos mínimos:
+
+* id UUID
+* order_id
+* status_type
+* previous_status
+* new_status
+* source
+* correlation_id nullable
+* created_at
+
+`source` poderá possuir:
+
+* SYSTEM
+* REPRESENTATIVE
+* ERP
+* ADMIN
+
+`status_type` deverá permitir distinguir:
+
+* INTERNAL
+* ERP
+
+ou estrutura equivalente.
+
+Toda alteração de status ERP deverá gerar histórico.
+
+Não somente sobrescrever `orders.erp_status`.
+
+---
+
+# 7. PEDIDOS DISPONÍVEIS PARA ERP
+
+Criar endpoint protegido por autenticação ERP:
+
+GET `/api/v1/erp/orders/submitted`
+
+Esse endpoint deverá retornar pedidos:
+
+* `internal_status = SUBMITTED`;
+* ainda não confirmados como importados pelo ERP.
+
+Utilizar paginação.
+
+Não retornar quantidade ilimitada de pedidos.
+
+Sugestão:
+
+* `page = 1`
+* `pageSize = 50`
+* máximo = 100
+
+Se considerar cursor mais apropriado para integração, pode utilizar cursor, mas explique a decisão.
+
+---
+
+# 8. CONCORRÊNCIA NA LEITURA
+
+O fato de o ERP consultar um pedido NÃO significa que ele já foi importado.
+
+Portanto:
+
+GET `/erp/orders/submitted`
+
+não deve marcar automaticamente como sincronizado.
+
+O pedido somente passa a ser considerado importado quando houver confirmação explícita do ERP.
+
+Isso é importante porque uma chamada HTTP pode ser concluída no sistema web e falhar antes da importação no ERP.
+
+---
+
+# 9. DETALHE DO PEDIDO
+
+Criar:
+
+GET `/api/v1/erp/orders/:id`
+
+ou contrato equivalente.
+
+Retornar:
+
+## Cabeçalho
+
+* identificador do pedido web;
+* número interno;
+* data;
+* representante;
+* cliente;
+* condição de pagamento;
+* transportadora;
+* observação;
+* D1;
+* D2;
+* D3;
+* D4;
+* valor bruto;
+* valor líquido.
+
+## Itens
+
+Para cada item retornar o SNAPSHOT gravado.
+
+Não consultar o produto atual para reconstruir o item.
+
+---
+
+# 10. IDENTIFICAÇÃO ERP DO REPRESENTANTE
+
+No payload do pedido retornar o código ERP do representante.
+
+Exemplo:
+
+`representative_erp_code`
+
+Nunca obrigar o ERP a utilizar UUID interno.
+
+---
+
+# 11. IDENTIFICAÇÃO ERP DO CLIENTE
+
+Retornar:
+
+`customer_erp_code`
+
+e demais informações necessárias.
+
+O ERP deverá utilizar seu próprio código para localizar o cliente.
+
+Não utilizar UUID interno como identificador comercial externo.
+
+---
+
+# 12. CONDIÇÃO DE PAGAMENTO
+
+Retornar:
+
+`payment_term_erp_code`
+
+Não retornar somente UUID.
+
+---
+
+# 13. TRANSPORTADORA
+
+Quando houver:
+
+retornar:
+
+`carrier_erp_code`
+
+Se não houver:
+
+`null`
+
+---
+
+# 14. ITENS DO PEDIDO PARA ERP
+
+Cada item deverá retornar pelo menos:
+
+* product ERP identifier;
+* group_code;
+* type_code;
+* product_code;
+* reference_code;
+* descrição snapshot;
+* embalagem snapshot;
+* largura snapshot;
+* cor snapshot;
+* quantity;
+* suggested_unit_price;
+* suggested_price_origin;
+* effective_unit_price;
+* effective_price_origin;
+* is_special_price;
+* special_unit_price;
+* discount1;
+* discount2;
+* discount3;
+* discount4;
+* discounts_applied;
+* net_unit_price;
+* gross_total;
+* net_total.
+
+---
+
+# 15. PRECISÃO NA API ERP
+
+Preservar exatamente a estratégia da Fase 4.
+
+## Valores unitários
+
+Enviar como strings decimais com até 6 casas.
+
+Exemplo:
+
+`"2.994300"`
+
+## Quantidades
+
+Enviar como string decimal preservando a precisão necessária.
+
+## Totais
+
+Sempre 2 casas decimais.
+
+Exemplo:
+
+`"8.98"`
+
+Não converter valores financeiros para JSON number se isso puder causar perda de precisão.
+
+Preferir strings decimais.
+
+---
+
+# 16. TOTAL DO PEDIDO
+
+O ERP receberá exatamente:
+
+`orders.gross_total`
+
+e:
+
+`orders.net_total`
+
+Esses valores já são:
+
+`soma dos totais dos itens arredondados`
+
+Não recalcular o pedido na API ERP usando preços unitários.
+
+---
+
+# 17. CONFIRMAÇÃO DE IMPORTAÇÃO
+
+Criar endpoint:
+
+POST `/api/v1/erp/orders/:id/confirm`
+
+O ERP chamará após importar o pedido com sucesso.
+
+Payload conceitual:
+
+```json
+{
+  "erp_order_number": "123456",
+  "erp_import_id": "opcional-identificador-unico",
+  "status": "EM_ANALISE",
+  "source_updated_at": "2026-08-26T12:30:00Z"
+}
+```
+
+Ao confirmar:
+
+* validar pedido SUBMITTED;
+* salvar número ERP;
+* salvar `erp_synced_at`;
+* salvar identificador externo, quando utilizado;
+* atualizar `erp_status` quando fornecido;
+* criar histórico;
+* registrar integration log.
+
+Executar em transação.
+
+---
+
+# 18. IDEMPOTÊNCIA DA CONFIRMAÇÃO
+
+A confirmação precisa ser idempotente.
+
+Exemplo:
+
+ERP importa pedido 100.
+
+Chama confirm.
+
+A resposta chega ou não chega ao ERP.
+
+ERP repete a mesma chamada.
+
+A segunda chamada NÃO pode:
+
+* duplicar histórico indevidamente;
+* alterar número de forma incorreta;
+* gerar inconsistência;
+* falhar simplesmente porque a primeira já foi processada.
+
+Se os dados forem idênticos:
+
+retornar sucesso idempotente.
+
+---
+
+# 19. CONFLITO NA CONFIRMAÇÃO
+
+Se pedido já estiver vinculado a:
+
+`erp_order_number = 123456`
+
+e chegar posteriormente confirmação informando:
+
+`erp_order_number = 999999`
+
+não sobrescrever silenciosamente.
+
+Retornar erro de conflito.
+
+Sugestão:
+
+HTTP `409`
+
+Motivo:
+
+`ERP_ORDER_NUMBER_CONFLICT`
+
+Registrar log sem expor informação sensível.
+
+---
+
+# 20. IDENTIFICADOR DE IMPORTAÇÃO
+
+Se possível, utilizar:
+
+`erp_import_id`
+
+como identificador idempotente adicional.
+
+Ele pode representar a operação de importação no ERP.
+
+Adicionar UNIQUE se isso fizer sentido no contrato adotado.
+
+Não inventar esse conceito se o ERP não conseguir fornecê-lo.
+
+Se for opcional, documentar.
+
+---
+
+# 21. ATUALIZAÇÃO DE STATUS ERP
+
+Criar endpoint:
+
+POST ou PATCH `/api/v1/erp/orders/:id/status`
+
+Payload:
+
+```json
+{
+  "status": "APROVADO",
+  "source_updated_at": "2026-08-26T15:20:00Z"
+}
+```
+
+Valores permitidos:
+
+* EM_ANALISE
+* APROVADO
+* FECHADO
+* FATURADO
+* REPROVADO
+
+Não aceitar outros valores.
+
+---
+
+# 22. PROTEÇÃO CONTRA STATUS ANTIGO
+
+Utilizar timestamp do ERP.
+
+Se já houver:
+
+`erp_last_status_at = 2026-08-26T15:00:00Z`
+
+e chegar:
+
+`source_updated_at = 2026-08-26T14:00:00Z`
+
+não sobrescrever status atual.
+
+Retornar comportamento idempotente/ignored.
+
+Motivo:
+
+`STALE_SOURCE_VERSION`
+
+Seguir o mesmo padrão já utilizado nas sincronizações cadastrais.
+
+---
+
+# 23. TIMESTAMP IGUAL
+
+Definir comportamento consistente com as fases anteriores.
+
+Preferência:
+
+timestamp igual → ignorar como versão já processada/obsoleta.
+
+Não gerar novo histórico se o status não mudou.
+
+---
+
+# 24. MESMO STATUS NOVAMENTE
+
+Se o pedido já estiver:
+
+`APROVADO`
+
+e o ERP enviar novamente:
+
+`APROVADO`
+
+não criar histórico duplicado desnecessariamente.
+
+Responder sucesso/idempotência.
+
+Atualizar apenas dados técnicos se necessário e seguro.
+
+---
+
+# 25. TRANSIÇÕES DE STATUS
+
+Não presumir regras excessivamente rígidas nesta primeira versão.
+
+O ERP continua sendo a fonte do status comercial.
+
+Entretanto:
+
+* validar enum;
+* proteger versões antigas;
+* manter histórico.
+
+Não bloquear automaticamente uma correção administrativa legítima do ERP apenas porque a sequência não foi:
+
+EM_ANALISE → APROVADO → FECHADO → FATURADO.
+
+Se desejar implementar transições permitidas, primeiro explique a regra antes de codificá-la.
+
+---
+
+# 26. PEDIDO REPROVADO
+
+`REPROVADO` é um status comercial.
+
+Não transformar automaticamente o pedido novamente em DRAFT.
+
+Pedido submetido continua imutável no sistema web.
+
+Se futuramente existir fluxo de cópia/reabertura, será outra funcionalidade.
+
+---
+
+# 27. PEDIDO FATURADO
+
+Quando:
+
+`erp_status = FATURADO`
+
+apenas refletir o status nesta fase.
+
+Não implementar:
+
+* nota fiscal;
+* XML;
+* tracking;
+* parcelas;
+* dados fiscais.
+
+---
+
+# 28. SEGURANÇA ERP
+
+Reutilizar a autenticação server-to-server já implementada.
+
+Todos os endpoints:
+
+`/api/v1/erp/orders/...`
+
+devem exigir API Key válida.
+
+Nunca aceitar sessão de usuário web como substituto da autenticação ERP.
+
+Nunca expor:
+
+* API Key;
+* Secrets;
+* Authorization headers;
+* tokens.
+
+---
+
+# 29. CORRELATION ID
+
+Seguir o padrão existente.
+
+Toda operação ERP deve possuir:
+
+`correlation_id`
+
+Se informado:
+
+preservar.
+
+Se ausente:
+
+gerar UUID.
+
+Registrar em:
+
+`integration_logs`
+
+e retornar nas respostas quando apropriado.
+
+---
+
+# 30. INTEGRATION LOGS
+
+Registrar:
+
+* consulta de pedidos quando apropriado;
+* detalhe, se não gerar volume excessivo;
+* confirmação;
+* atualização de status;
+* erros;
+* conflitos;
+* versões antigas.
+
+Evitar criar uma quantidade desnecessária de logs para cada simples leitura se isso gerar volume excessivo.
+
+Priorizar eventos que alteram estado ou representam falha de integração.
+
+---
+
+# 31. LISTAGEM WEB DOS PEDIDOS
+
+Atualizar tela existente.
+
+Mostrar para cada pedido:
+
+* número interno;
+* cliente;
+* valor;
+* status interno;
+* status ERP;
+* número ERP, quando disponível.
+
+---
+
+# 32. STATUS VISUAL
+
+Criar apresentação amigável.
+
+Exemplos:
+
+`DRAFT`
+→ Rascunho
+
+`SUBMITTED` sem ERP:
+→ Enviado
+
+`EM_ANALISE`
+→ Em análise
+
+`APROVADO`
+→ Aprovado
+
+`FECHADO`
+→ Fechado
+
+`FATURADO`
+→ Faturado
+
+`REPROVADO`
+→ Reprovado
+
+Não depender somente de cor.
+
+Sempre exibir texto.
+
+---
+
+# 33. DETALHE DO PEDIDO
+
+Quando pedido já tiver sido importado pelo ERP, mostrar:
+
+* Número interno
+* Número ERP
+* Status ERP
+* Data de envio
+* Data de integração
+
+Opcionalmente mostrar uma linha do tempo simples do histórico.
+
+---
+
+# 34. HISTÓRICO NA INTERFACE
+
+Se simples de implementar, apresentar no detalhe:
+
+Histórico do pedido
+
+Exemplo:
+
+26/08/2026 09:15
+Pedido finalizado
+
+26/08/2026 09:20
+Importado pelo ERP
+Pedido ERP 123456
+
+26/08/2026 10:00
+Em análise
+
+26/08/2026 11:40
+Aprovado
+
+Não tornar isso obrigatório para funcionamento da integração, mas o backend deve possuir histórico.
+
+---
+
+# 35. NÃO ALTERAR SNAPSHOTS
+
+A API ERP deve utilizar os dados congelados no pedido.
+
+Nunca reconstruir:
+
+* descrição;
+* preço;
+* descontos;
+* códigos;
+* totais
+
+a partir dos cadastros atuais.
+
+---
+
+# 36. NÃO ALTERAR CÁLCULOS
+
+A Fase 5 não deve recalcular pedidos.
+
+A Fase 4 já definiu os valores definitivos.
+
+API ERP deve atuar como leitura dos valores persistidos.
+
+Não chamar `PricingService` para reconstruir preço de pedido SUBMITTED.
+
+Não reaplicar `DiscountService`.
+
+---
+
+# 37. LISTAGEM ERP — PAGINAÇÃO
+
+Criar paginação determinística.
+
+Ordenar preferencialmente por:
+
+`submitted_at ASC`
+
+e algum critério secundário estável, como:
+
+`id`
+
+Isso permite o ERP importar na ordem dos pedidos enviados.
+
+---
+
+# 38. FILTRO OPCIONAL
+
+Se útil, permitir filtro de pedidos submetidos por:
+
+* `submitted_after`;
+* número interno;
+* ou cursor.
+
+Mas não tornar o contrato complexo sem necessidade.
+
+---
+
+# 39. RESPOSTA DO ENDPOINT SUBMITTED
+
+Exemplo conceitual:
+
+```json
+{
+  "items": [
+    {
+      "id": "uuid",
+      "internal_number": 1234,
+      "submitted_at": "2026-08-26T10:00:00Z",
+      "customer_erp_code": "CLI001",
+      "representative_erp_code": "028",
+      "gross_total": "100.00",
+      "net_total": "90.00"
+    }
+  ],
+  "page": 1,
+  "pageSize": 50,
+  "totalItems": 1,
+  "totalPages": 1
+}
+```
+
+Essa listagem pode retornar apenas um resumo.
+
+Detalhes completos podem vir em:
+
+GET `/api/v1/erp/orders/:id`
+
+---
+
+# 40. TESTES — LISTAGEM ERP
+
+Testar:
+
+1. DRAFT não aparece.
+2. SUBMITTED não importado aparece.
+3. Pedido confirmado como importado não aparece novamente.
+4. Paginação funciona.
+5. Ordenação é determinística.
+6. API Key inválida retorna erro.
+7. API Key válida funciona.
+
+---
+
+# 41. TESTES — PAYLOAD DO PEDIDO
+
+Testar:
+
+8. códigos ERP corretos;
+9. snapshot do produto;
+10. quantidade;
+11. unitário com 6 casas;
+12. totais com 2 casas;
+13. quatro descontos;
+14. preço especial;
+15. item especial mantém `discounts_applied=false`;
+16. total do pedido igual aos totais armazenados.
+
+---
+
+# 42. TESTES — CONFIRMAÇÃO
+
+Testar:
+
+17. primeira confirmação funciona;
+18. grava número ERP;
+19. grava data de sincronização;
+20. confirmação repetida idêntica é idempotente;
+21. não duplica histórico;
+22. número ERP conflitante retorna 409;
+23. pedido DRAFT não pode ser confirmado como importado;
+24. correlation ID é registrado.
+
+---
+
+# 43. TESTES — STATUS
+
+Testar:
+
+25. EM_ANALISE;
+26. APROVADO;
+27. FECHADO;
+28. FATURADO;
+29. REPROVADO;
+30. enum inválido rejeitado;
+31. status novo gera histórico;
+32. mesmo status repetido não duplica histórico;
+33. timestamp antigo é ignorado;
+34. timestamp igual é ignorado;
+35. timestamp novo é aceito.
+
+---
+
+# 44. TESTES — SEGURANÇA
+
+36. endpoint ERP sem API Key → rejeitado;
+37. API Key inválida → rejeitada;
+38. sessão REPRESENTATIVE não substitui API Key;
+39. sessão ADMIN não substitui API Key;
+40. erro não expõe segredo.
+
+---
+
+# 45. TESTES — IMUTABILIDADE
+
+41. atualização de status ERP não modifica itens;
+42. confirmação não modifica preços;
+43. confirmação não modifica descontos;
+44. confirmação não modifica totais;
+45. alteração de cadastro posterior não modifica payload histórico do pedido.
+
+---
+
+# 46. OPENAPI
+
+Atualizar:
+
+`lib/api-spec/openapi.yaml`
+
+Documentar completamente:
+
+* GET submitted;
+* GET detalhe;
+* POST confirm;
+* PATCH/POST status;
+* autenticação;
+* correlation ID;
+* erros;
+* idempotência;
+* precisão decimal;
+* status ERP.
+
+Regenerar cliente/tipos necessários.
+
+A API ERP provavelmente não precisará de hooks React, mas preserve o processo atual de codegen de forma consistente.
+
+---
+
+# 47. DOCUMENTAÇÃO ERP
+
+Atualizar obrigatoriamente:
+
+`docs/ERP_API.md`
+
+Esse documento agora passa a ser importante para implementar a integração no ERP.
+
+Documentar:
+
+## Autenticação
+
+Header e API Key.
+
+## Pedidos disponíveis
+
+Endpoint e paginação.
+
+## Consulta completa
+
+Payload.
+
+## Confirmação
+
+Payload e idempotência.
+
+## Status
+
+Valores permitidos.
+
+## Erros
+
+* 400
+* 401
+* 404
+* 409
+* outros realmente usados.
+
+## Precisão
+
+Unitários com 6 casas.
+
+Totais com 2 casas.
+
+---
+
+# 48. EXEMPLOS PARA O ERP
+
+Adicionar exemplos completos de:
+
+1. consultar pedidos;
+2. consultar um pedido;
+3. confirmar importação;
+4. enviar EM_ANALISE;
+5. enviar APROVADO;
+6. enviar FECHADO;
+7. enviar FATURADO;
+8. enviar REPROVADO.
+
+Esses exemplos deverão poder servir posteriormente para implementação do cliente ERP.
+
+---
+
+# 49. DOCUMENTAÇÃO GERAL
+
+Atualizar:
+
+* README.md
+* docs/ARCHITECTURE.md
+* docs/DATABASE.md
+* docs/BUSINESS_RULES.md
+* docs/ERP_API.md
+* docs/CHANGELOG.md
+
+---
+
+# 50. NÃO IMPLEMENTAR NESTA FASE
+
+Não implementar:
+
+* NF-e;
+* faturamento detalhado;
+* XML;
+* CT-e;
+* rastreamento de entrega;
+* financeiro;
+* comissão;
+* estoque online;
+* cancelamento automático;
+* reabertura automática de pedido;
+* edição de pedido SUBMITTED.
+
+---
+
+# 51. VALIDAÇÃO FINAL
+
+Executar:
+
+* migrations;
+* drift check;
+* typecheck;
+* todos os testes;
+* build API;
+* build frontend;
+* OpenAPI/codegen;
+* validação HTTP;
+* testes de idempotência;
+* testes mobile;
+* desktop.
+
+---
+
+# 52. TESTE DE FLUXO COMPLETO
+
+Executar teste real equivalente a:
+
+1. representante faz login;
+2. cria orçamento;
+3. inclui item;
+4. finaliza;
+5. pedido aparece no endpoint ERP;
+6. ERP consulta detalhe;
+7. ERP confirma importação;
+8. pedido deixa de aparecer como pendente de importação;
+9. número ERP aparece no sistema web;
+10. ERP envia EM_ANALISE;
+11. sistema web mostra Em análise;
+12. ERP envia APROVADO;
+13. sistema mostra Aprovado;
+14. histórico registra as mudanças;
+15. recarregar página mantém tudo corretamente.
+
+---
+
+# 53. RELATÓRIO FINAL
+
+Ao terminar apresentar:
+
+## Banco
+
+Campos/migrations criados.
+
+## Fluxo ERP
+
+Explique:
+
+SUBMITTED
+→ consulta
+→ detalhe
+→ importação
+→ confirmação
+→ status.
+
+## API ERP
+
+Liste endpoints e exemplos.
+
+## Idempotência
+
+Explique como evita duplicação.
+
+## Histórico
+
+Explique armazenamento.
+
+## Precisão financeira
+
+Confirme:
+
+* unitário até 6 casas;
+* total 2 casas;
+* nenhum recálculo na integração.
+
+## Segurança
+
+Explique autenticação ERP.
+
+## Interface
+
+Explique como status aparece para representante.
+
+## Testes
+
+Informe:
+
+* total;
+* aprovados;
+* reprovados.
+
+## Builds
+
+Informe resultados.
+
+## Pendências
+
+Liste qualquer decisão ainda necessária.
+
+## Conclusão
+
+Diga explicitamente:
+
+**Fase 5 concluída e integração de pedidos com ERP pronta para homologação.**
+
+Depois PARE.
+
+Não iniciar automaticamente novas funcionalidades.
