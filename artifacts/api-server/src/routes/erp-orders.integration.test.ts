@@ -194,13 +194,23 @@ test("ERP order HTTP contract is secure, frozen, idempotent and versioned", asyn
     source_updated_at: "2026-08-26T12:00:00.000Z",
     correlation_id: correlation,
   };
+  // A queue payload is only advisory: confirm must lock and re-read the current row.
+  const queuedBeforeConfirm = await (await erp("/v1/erp/orders/submitted")).json() as any;
+  assert.ok(queuedBeforeConfirm.items.some((item: any) => item.id === orderId));
+  await db.update(orders).set({ notes: "changed after queue read" }).where(eq(orders.id, orderId));
   assert.equal((await erp(`/v1/erp/orders/${orderId}/confirm`, "POST", confirmation)).status, 200);
+  const [rereadConfirmed] = await db.select().from(orders).where(eq(orders.id, orderId));
+  assert.equal(rereadConfirmed.notes, "changed after queue read");
   response = await erp(`/v1/erp/orders/${orderId}/confirm`, "POST", confirmation);
   assert.equal(response.status, 200);
   assert.equal((await response.json() as any).result, "ignored");
   assert.equal((await erp(`/v1/erp/orders/${orderId}/confirm`, "POST", {
     ...confirmation,
     erp_order_number: `${prefix}-different`,
+  })).status, 409);
+  assert.equal((await erp(`/v1/erp/orders/${orderId}/confirm`, "POST", {
+    ...confirmation,
+    erp_import_id: `${prefix}-different-import`,
   })).status, 409);
   assert.equal((await erp("/v1/erp/orders/submitted")).status, 200);
   assert.ok(!(await (await erp("/v1/erp/orders/submitted")).json() as any).items.some((item: any) => item.id === orderId));
@@ -209,25 +219,34 @@ test("ERP order HTTP contract is secure, frozen, idempotent and versioned", asyn
     status: "INVALID",
     source_updated_at: "2026-08-26T13:00:00.000Z",
   })).status, 400);
+  for (const [status, at] of [
+    ["APROVADO", "2026-08-26T13:00:00.000Z"],
+    ["FECHADO", "2026-08-26T14:00:00.000Z"],
+    ["FATURADO", "2026-08-26T15:00:00.000Z"],
+    ["REPROVADO", "2026-08-26T16:00:00.000Z"],
+  ] as const) {
+    response = await erp(`/v1/erp/orders/${orderId}/status`, "PATCH", {
+      status, source_updated_at: at,
+    });
+    assert.equal((await response.json() as any).result, "updated");
+  }
   response = await erp(`/v1/erp/orders/${orderId}/status`, "PATCH", {
-    status: "APROVADO",
-    source_updated_at: "2026-08-26T13:00:00.000Z",
-  });
-  assert.equal((await response.json() as any).result, "updated");
-  response = await erp(`/v1/erp/orders/${orderId}/status`, "PATCH", {
-    status: "FATURADO",
-    source_updated_at: "2026-08-26T12:30:00.000Z",
+    status: "APROVADO", source_updated_at: "2026-08-26T15:30:00.000Z",
   });
   assert.equal((await response.json() as any).reason, "STALE_SOURCE_VERSION");
-  await erp(`/v1/erp/orders/${orderId}/status`, "PATCH", {
-    status: "APROVADO",
-    source_updated_at: "2026-08-26T14:00:00.000Z",
+  response = await erp(`/v1/erp/orders/${orderId}/status`, "PATCH", {
+    status: "REPROVADO", source_updated_at: "2026-08-26T17:00:00.000Z",
   });
+  assert.equal((await response.json() as any).reason, "STATUS_UNCHANGED");
+  response = await erp(`/v1/erp/orders/${orderId}/status`, "PATCH", {
+    status: "APROVADO", source_updated_at: "2026-08-26T17:00:00.000Z",
+  });
+  assert.equal((await response.json() as any).reason, "STALE_SOURCE_VERSION");
 
   const history = await db.select().from(orderStatusHistory).where(eq(orderStatusHistory.orderId, orderId));
-  assert.deepEqual(history.map(value => value.newStatus), ["EM_ANALISE", "APROVADO"]);
+  assert.deepEqual(history.map(value => value.newStatus), ["EM_ANALISE", "APROVADO", "FECHADO", "FATURADO", "REPROVADO"]);
   const [stored] = await db.select().from(orders).where(eq(orders.id, orderId));
-  assert.equal(stored.erpStatus, "APROVADO");
+  assert.equal(stored.erpStatus, "REPROVADO");
   assert.equal(stored.grossTotal, "8.98");
   const logs = await db.select().from(integrationLogs).where(and(
     eq(integrationLogs.entity, "orders"),

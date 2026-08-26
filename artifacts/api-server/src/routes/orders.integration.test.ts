@@ -73,6 +73,9 @@ test("orders HTTP lifecycle: isolation, snapshots, precision, special rules and 
   assert.equal((await request(`/v1/orders/${id}`, adminCookie, "PATCH", { version: order.version, notes: "no" })).status, 403);
   response = await request(`/v1/orders/${id}/items`, repCookie, "POST", { version: order.version, productId, quantity: "3.0000" }); assert.equal(response.status, 201);
   order = await response.json(); const normal = order.items[0]; assert.equal(normal.suggestedUnitPrice, "2.994300"); assert.equal(normal.netTotal, "7.68"); assert.equal(order.netTotal, "7.68");
+  assert.equal((await request(`/v1/orders/${id}/items`, repCookie, "POST", {
+    version: order.version, productId, quantity: "1.0000", netTotal: "0.00",
+  })).status, 400, "item server-owned totals reject mass assignment");
   response = await request(`/v1/orders/${id}/items`, repCookie, "POST", { version: order.version, productId, quantity: "3.0000", specialUnitPrice: "1.667000" }); assert.equal(response.status, 201);
   order = await response.json(); const special = order.items.find((x: any) => x.isSpecialPrice); assert.equal(special.suggestedUnitPrice, "2.994300"); assert.equal(special.netTotal, "5.00"); assert.equal(order.netTotal, "12.68");
   response = await request(`/v1/orders/${id}`, repCookie, "PATCH", { version: order.version, discount1: "20" }); assert.equal(response.status, 200);

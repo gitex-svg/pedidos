@@ -59,4 +59,4 @@ await db.transaction(async (tx) => {
   }
 });
 
-process.stdout.write(`Administrador ${email} criado ou atualizado.\n`);
+process.stdout.write("Administrador criado ou atualizado com sucesso.\n");

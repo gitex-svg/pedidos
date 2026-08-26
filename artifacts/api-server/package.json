@@ -8,6 +8,7 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "test": "tsx --test src/**/*.test.ts",
+    "performance:phase6": "tsx src/performance/phase6-benchmark.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

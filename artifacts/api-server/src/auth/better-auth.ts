@@ -1,24 +1,19 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { db, account, session, user, verification } from "@workspace/db";
+import { loadConfig } from "../lib/config";
 
-const production = process.env.NODE_ENV === "production";
-const secret = process.env.SESSION_SECRET;
-const configuredBaseUrl = process.env.BETTER_AUTH_URL;
+const config = loadConfig(process.env, { requirePort: false });
+const production = config.production;
+const secret = config.sessionSecret;
+const configuredBaseUrl = config.betterAuthUrl;
 const replitDevHost = process.env.REPLIT_DEV_DOMAIN;
-
-if (!secret || secret.length < 32) {
-  throw new Error("SESSION_SECRET deve existir e possuir pelo menos 32 caracteres.");
-}
-if (production && !configuredBaseUrl) {
-  throw new Error("BETTER_AUTH_URL deve apontar para a origem pública exata em produção.");
-}
 
 const localOrigins = ["http://localhost:*", "http://127.0.0.1:*"];
 const trustedOrigins = [
   ...localOrigins,
   ...(replitDevHost ? [`https://${replitDevHost}`] : []),
-  ...(configuredBaseUrl ? [new URL(configuredBaseUrl).origin] : []),
+  ...config.trustedOrigins,
 ];
 
 export const auth = betterAuth({

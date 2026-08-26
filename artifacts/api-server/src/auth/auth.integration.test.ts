@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
-import test, { after, before } from "node:test";
+import test, { after, before, beforeEach } from "node:test";
 import type { Server } from "node:http";
 import { randomUUID } from "node:crypto";
 import { hashPassword } from "better-auth/crypto";
 import { inArray } from "drizzle-orm";
 import { accounts, db, users } from "@workspace/db";
 import app from "../app";
+import { loginLimiter } from "../middlewares/rate-limit";
 
 const password = "TesteSeguro@2026";
 const emails = {
@@ -54,6 +55,10 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${address.port}/api`;
 });
 
+beforeEach(() => {
+  loginLimiter.clear();
+});
+
 after(async () => {
   await db.delete(users).where(inArray(users.email, Object.values(emails)));
   await new Promise<void>((resolve, reject) =>
@@ -65,6 +70,17 @@ test("rejeita senha incorreta sem criar sessão", async () => {
   const response = await login(emails.representative, "SenhaIncorreta@2026");
   assert.equal(response.status, 401);
   assert.equal(sessionCookie(response), undefined);
+});
+
+test("limita login a cinco tentativas por IP em quinze minutos", async () => {
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const response = await login(emails.representative, "SenhaIncorreta@2026");
+    assert.equal(response.status, 401);
+  }
+
+  const blocked = await login(emails.representative, "SenhaIncorreta@2026");
+  assert.equal(blocked.status, 429);
+  assert.ok(Number(blocked.headers.get("retry-after")) > 0);
 });
 
 test("usuário inativo não autentica, não recebe sessão e não acessa endpoint protegido", async () => {

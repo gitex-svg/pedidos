@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,11 +23,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Search, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 import { normalizeDecimalString } from '@/lib/format';
+import { getOrderErrorMessage } from '@/lib/order-error';
+import { SubmissionLock } from '@/lib/submission-lock';
 
 const decimalDiscountSchema = z.string()
   .transform(val => normalizeDecimalString(val))
@@ -50,6 +52,7 @@ export default function OrderNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const createOrder = useCreateOrder();
+  const createLock = useRef(new SubmissionLock()).current;
   const queryClient = useQueryClient();
 
   const currentUser = useGetCurrentUser({ query: { retry: false, queryKey: getGetCurrentUserQueryKey() } });
@@ -94,6 +97,7 @@ export default function OrderNew() {
   });
 
   const onSubmit = (data: FormValues) => {
+    if (createOrder.isPending || !createLock.acquire()) return;
     const carrierId = data.carrierId === "none" || data.carrierId === "" ? null : data.carrierId;
     createOrder.mutate(
       { data: { ...data, carrierId, notes: data.notes || null } },
@@ -106,10 +110,11 @@ export default function OrderNew() {
         onError: (err: any) => {
           toast({
             title: "Erro ao criar orçamento",
-            description: err?.message || "Verifique os dados e tente novamente",
+            description: getOrderErrorMessage(err),
             variant: "destructive"
           });
-        }
+        },
+        onSettled: () => { createLock.release(); },
       }
     );
   };
@@ -161,12 +166,16 @@ export default function OrderNew() {
               <CardContent className="p-6 space-y-6">
 
                 <div className="space-y-2">
-                  <Label>Cliente</Label>
+                  <Label htmlFor="select-customer">Cliente <span aria-hidden="true">*</span></Label>
                   <Dialog open={customerDialogOpen} onOpenChange={setCustomerDialogOpen}>
                     <DialogTrigger asChild>
                       <Button
                         variant="outline"
                         role="combobox"
+                        id="select-customer"
+                        aria-required="true"
+                        aria-invalid={!!form.formState.errors.customerId}
+                        aria-describedby={form.formState.errors.customerId ? "customer-error" : undefined}
                         className={`w-full justify-between bg-background ${!selectedCustomer ? "text-muted-foreground" : ""}`}
                         data-testid="button-select-customer"
                       >
@@ -177,9 +186,12 @@ export default function OrderNew() {
                     <DialogContent className="sm:max-w-[500px]">
                       <DialogHeader>
                         <DialogTitle>Buscar Cliente</DialogTitle>
+                        <DialogDescription>Pesquise e selecione o cliente para este orçamento.</DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
                         <Input
+                          id="customer-search"
+                          aria-label="Buscar cliente"
                           placeholder="Nome, CNPJ ou código..."
                           value={customerSearch}
                           onChange={(e) => setCustomerSearch(e.target.value)}
@@ -192,9 +204,10 @@ export default function OrderNew() {
                             <div className="text-center py-4 text-muted-foreground text-sm">Nenhum cliente encontrado.</div>
                           )}
                           {customersPage?.items.map(c => (
-                            <div
+                            <button
+                              type="button"
                               key={c.id}
-                              className="p-3 rounded-lg border border-border bg-card hover:border-primary/50 cursor-pointer transition-colors"
+                              className="w-full p-3 rounded-lg border border-border bg-card text-left hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                               onClick={() => {
                                 setSelectedCustomer(c);
                                 form.setValue('customerId', c.id);
@@ -209,14 +222,14 @@ export default function OrderNew() {
                                 <span>{c.cnpj_cpf}</span>
                                 <span>{c.city}/{c.state}</span>
                               </div>
-                            </div>
+                            </button>
                           ))}
                         </div>
                       </div>
                     </DialogContent>
                   </Dialog>
                   {form.formState.errors.customerId && (
-                    <p className="text-sm font-medium text-destructive">{form.formState.errors.customerId.message}</p>
+                    <p id="customer-error" role="alert" className="text-sm font-medium text-destructive">{form.formState.errors.customerId.message}</p>
                   )}
                 </div>
 
@@ -227,9 +240,9 @@ export default function OrderNew() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Condição de Pagamento</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
-                            <SelectTrigger className="bg-background" data-testid="select-payment-term">
+                            <SelectTrigger className="bg-background" aria-required="true" data-testid="select-payment-term">
                               <SelectValue placeholder="Selecione..." />
                             </SelectTrigger>
                           </FormControl>
@@ -250,7 +263,7 @@ export default function OrderNew() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Transportadora (Opcional)</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger className="bg-background" data-testid="select-carrier">
                               <SelectValue placeholder="Sem transportadora" />
@@ -282,6 +295,7 @@ export default function OrderNew() {
                     name="notes"
                     render={({ field }) => (
                       <FormItem>
+                        <FormLabel>Observações</FormLabel>
                         <FormControl>
                           <Textarea
                             placeholder="Notas internas ou para o cliente..."

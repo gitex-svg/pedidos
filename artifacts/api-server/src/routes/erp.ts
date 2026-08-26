@@ -7,9 +7,11 @@ import {
 import { eq, or, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireErpApiKey } from "../middlewares/erp-api-key";
+import { limitErp } from "../middlewares/rate-limit";
 import { ErpOrderError, erpOrderService } from "../services/erp-integration-service";
 
 const router: IRouter = Router();
+router.use("/v1/erp", limitErp);
 const code = z.string().trim().min(1).max(128);
 const sourceUpdatedAt = z.coerce.date();
 const base = { active: z.boolean().default(true), source_updated_at: sourceUpdatedAt };

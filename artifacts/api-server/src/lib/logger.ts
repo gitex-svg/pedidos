@@ -1,13 +1,21 @@
 import pino from "pino";
+import { loadConfig } from "./config";
 
-const isProduction = process.env.NODE_ENV === "production";
+const config = loadConfig(process.env, { requirePort: false });
+const isProduction = config.production;
 
 export const logger = pino({
-  level: process.env.LOG_LEVEL ?? "info",
+  level: config.logLevel,
   redact: [
     "req.headers.authorization",
     "req.headers.cookie",
     "res.headers['set-cookie']",
+    "req.body.password",
+    "req.body.email",
+    "password",
+    "email",
+    "*.password",
+    "*.email",
   ],
   ...(isProduction
     ? {}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useParams } from 'wouter';
 import {
   useGetCurrentUser,
@@ -30,13 +30,15 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { formatMoney, formatUnitPrice, formatNumberBR, subtractMoney, validateAndFormatQuantity, validateAndFormatUnitPrice } from '@/lib/format';
 import { Loader2, ArrowLeft, Search, Plus, Save, Trash2, Edit2, AlertCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getGetOrderQueryKey, getResolvePriceQueryKey, getListOrdersQueryKey } from '@workspace/api-client-react';
 import { ErpStatusBadge, ErpDateDisplay, getErpStatusConfig } from '@/components/erp-status-badge';
+import { getOrderErrorMessage } from '@/lib/order-error';
+import { SubmissionLock } from '@/lib/submission-lock';
 
 export default function OrderDetail() {
   const params = useParams();
@@ -168,10 +170,12 @@ export default function OrderDetail() {
 
 function SubmitOrderButton({ orderId, version }: { orderId: string, version: number }) {
   const submitOrder = useSubmitOrder();
+  const submitLock = useRef(new SubmissionLock()).current;
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const handleSubmit = () => {
+    if (submitOrder.isPending || !submitLock.acquire()) return;
     submitOrder.mutate(
       { id: orderId, data: { version } },
       {
@@ -181,8 +185,9 @@ function SubmitOrderButton({ orderId, version }: { orderId: string, version: num
           queryClient.setQueryData(getGetOrderQueryKey(orderId), updated);
         },
         onError: (err: any) => {
-          toast({ title: "Erro ao enviar", description: err.message, variant: "destructive" });
-        }
+          toast({ title: "Não foi possível finalizar o pedido", description: getOrderErrorMessage(err), variant: "destructive" });
+        },
+        onSettled: () => { submitLock.release(); },
       }
     );
   };
@@ -197,6 +202,7 @@ function SubmitOrderButton({ orderId, version }: { orderId: string, version: num
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Finalizar Pedido?</DialogTitle>
+          <DialogDescription>Confirme a finalização deste pedido.</DialogDescription>
         </DialogHeader>
         <div className="py-4">
           <p>Após a finalização, o pedido não poderá mais ser alterado e ficará disponível para integração.</p>
@@ -298,6 +304,7 @@ function statusHistoryLabel(status: string) {
 
 function OrderHeaderSection({ order, canEdit }: { order: any, canEdit: boolean }) {
   const updateOrder = useUpdateOrder();
+  const updateLock = useRef(new SubmissionLock()).current;
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -354,7 +361,7 @@ function OrderHeaderSection({ order, canEdit }: { order: any, canEdit: boolean }
   const normalizeDiscount = (v: string) => v ? v.replace(',', '.') : "0";
 
   const handleSave = () => {
-    if (!canEdit) return;
+    if (!canEdit || updateOrder.isPending || !updateLock.acquire()) return;
     updateOrder.mutate(
       {
         id: order.id,
@@ -377,8 +384,9 @@ function OrderHeaderSection({ order, canEdit }: { order: any, canEdit: boolean }
           queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
         },
         onError: (err: any) => {
-          toast({ title: "Erro ao atualizar", description: err.message, variant: "destructive" });
-        }
+          toast({ title: "Não foi possível salvar as alterações", description: getOrderErrorMessage(err), variant: "destructive" });
+        },
+        onSettled: () => { updateLock.release(); },
       }
     );
   };
@@ -393,12 +401,14 @@ function OrderHeaderSection({ order, canEdit }: { order: any, canEdit: boolean }
         {canEdit ? (
           <div className="space-y-4">
             <div>
-              <Label className="text-xs text-muted-foreground uppercase">Cliente</Label>
+              <Label htmlFor="edit-customer" className="text-xs text-muted-foreground uppercase">Cliente</Label>
               <Dialog open={customerDialogOpen} onOpenChange={setCustomerDialogOpen}>
                 <DialogTrigger asChild>
                   <Button
                     variant="outline"
                     role="combobox"
+                    id="edit-customer"
+                    aria-label="Selecionar cliente"
                     className="w-full justify-between bg-background mt-1"
                   >
                     <span className="truncate">
@@ -410,9 +420,12 @@ function OrderHeaderSection({ order, canEdit }: { order: any, canEdit: boolean }
                 <DialogContent className="sm:max-w-[500px]">
                   <DialogHeader>
                     <DialogTitle>Buscar Cliente</DialogTitle>
+                          <DialogDescription>Pesquise e selecione o cliente para este orçamento.</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
-                    <Input
+                      <Input
+                        id="edit-customer-search"
+                        aria-label="Buscar cliente"
                       placeholder="Nome, CNPJ ou código..."
                       value={customerSearch}
                       onChange={(e) => setCustomerSearch(e.target.value)}
@@ -425,9 +438,10 @@ function OrderHeaderSection({ order, canEdit }: { order: any, canEdit: boolean }
                         <div className="text-center py-4 text-muted-foreground text-sm">Nenhum cliente encontrado.</div>
                       )}
                       {customersPage?.items.map(c => (
-                        <div
+                        <button
+                          type="button"
                           key={c.id}
-                          className="p-3 rounded-lg border border-border bg-card hover:border-primary/50 cursor-pointer transition-colors"
+                          className="w-full p-3 rounded-lg border border-border bg-card text-left hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
                           onClick={() => {
                             setSelectedCustomer(c);
                             setCustomerId(c.id);
@@ -439,7 +453,7 @@ function OrderHeaderSection({ order, canEdit }: { order: any, canEdit: boolean }
                             <span className="font-mono-brand">Cód: {c.erp_code}</span>
                             <span>{c.cnpj_cpf}</span>
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -450,7 +464,7 @@ function OrderHeaderSection({ order, canEdit }: { order: any, canEdit: boolean }
             <div>
               <Label className="text-xs text-muted-foreground uppercase">Condição de Pagamento</Label>
               <Select value={paymentTermId} onValueChange={setPaymentTermId}>
-                <SelectTrigger className="bg-background mt-1">
+                <SelectTrigger className="bg-background mt-1" aria-label="Condição de pagamento">
                   <SelectValue placeholder="Selecione..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -464,7 +478,7 @@ function OrderHeaderSection({ order, canEdit }: { order: any, canEdit: boolean }
             <div>
               <Label className="text-xs text-muted-foreground uppercase">Transportadora (Opcional)</Label>
               <Select value={carrierId} onValueChange={setCarrierId}>
-                <SelectTrigger className="bg-background mt-1">
+                <SelectTrigger className="bg-background mt-1" aria-label="Transportadora">
                   <SelectValue placeholder="Sem transportadora" />
                 </SelectTrigger>
                 <SelectContent>
@@ -482,33 +496,37 @@ function OrderHeaderSection({ order, canEdit }: { order: any, canEdit: boolean }
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label className="text-xs text-muted-foreground uppercase">Desc 1 (%)</Label>
+            <Label htmlFor="edit-d1" className="text-xs text-muted-foreground uppercase">Desc 1 (%)</Label>
             <Input
               value={d1} onChange={e => setD1(e.target.value)} disabled={!canEdit}
+              id="edit-d1"
               className="mt-1 font-mono-brand bg-background/50 h-8"
               data-testid="input-edit-d1"
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground uppercase">Desc 2 (%)</Label>
+            <Label htmlFor="edit-d2" className="text-xs text-muted-foreground uppercase">Desc 2 (%)</Label>
             <Input
               value={d2} onChange={e => setD2(e.target.value)} disabled={!canEdit}
+              id="edit-d2"
               className="mt-1 font-mono-brand bg-background/50 h-8"
               data-testid="input-edit-d2"
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground uppercase">Desc 3 (%)</Label>
+            <Label htmlFor="edit-d3" className="text-xs text-muted-foreground uppercase">Desc 3 (%)</Label>
             <Input
               value={d3} onChange={e => setD3(e.target.value)} disabled={!canEdit}
+              id="edit-d3"
               className="mt-1 font-mono-brand bg-background/50 h-8"
               data-testid="input-edit-d3"
             />
           </div>
           <div>
-            <Label className="text-xs text-muted-foreground uppercase">Desc 4 (%)</Label>
+            <Label htmlFor="edit-d4" className="text-xs text-muted-foreground uppercase">Desc 4 (%)</Label>
             <Input
               value={d4} onChange={e => setD4(e.target.value)} disabled={!canEdit}
+              id="edit-d4"
               className="mt-1 font-mono-brand bg-background/50 h-8"
               data-testid="input-edit-d4"
             />
@@ -516,9 +534,10 @@ function OrderHeaderSection({ order, canEdit }: { order: any, canEdit: boolean }
         </div>
 
         <div>
-          <Label className="text-xs text-muted-foreground uppercase">Observações</Label>
+          <Label htmlFor="edit-notes" className="text-xs text-muted-foreground uppercase">Observações</Label>
           <Textarea
             value={notes} onChange={e => setNotes(e.target.value)} disabled={!canEdit}
+            id="edit-notes"
             className="mt-1 bg-background/50 resize-none h-20"
             data-testid="input-edit-notes"
           />
@@ -595,7 +614,7 @@ function OrderItemsSection({ order, canEdit }: { order: any, canEdit: boolean })
                       </TableCell>
                       {canEdit && (
                         <TableCell>
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                             <EditItemDialog order={order} item={item} />
                             <DeleteItemButton orderId={order.id} itemId={item.id} version={order.version} />
                           </div>
@@ -674,6 +693,7 @@ function AddItemDialog({ order }: { order: any }) {
   const { toast } = useToast();
 
   const addOrderItem = useAddOrderItem();
+  const addLock = useRef(new SubmissionLock()).current;
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 500);
@@ -703,7 +723,7 @@ function AddItemDialog({ order }: { order: any }) {
   }, [open]);
 
   const handleAdd = () => {
-    if (!selectedProduct) return;
+    if (!selectedProduct || addOrderItem.isPending) return;
 
     const qStr = validateAndFormatQuantity(quantity);
     if (!qStr) {
@@ -726,6 +746,7 @@ function AddItemDialog({ order }: { order: any }) {
       payload.specialUnitPrice = spStr;
     }
 
+    if (!addLock.acquire()) return;
     addOrderItem.mutate(
       { id: order.id, data: payload },
       {
@@ -736,8 +757,9 @@ function AddItemDialog({ order }: { order: any }) {
           setOpen(false);
         },
         onError: (err: any) => {
-          toast({ title: "Erro ao adicionar", description: err.message, variant: "destructive" });
-        }
+          toast({ title: "Não foi possível adicionar o item", description: getOrderErrorMessage(err), variant: "destructive" });
+        },
+        onSettled: () => { addLock.release(); },
       }
     );
   };
@@ -752,6 +774,7 @@ function AddItemDialog({ order }: { order: any }) {
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Adicionar Produto</DialogTitle>
+          <DialogDescription>Busque um produto e informe a quantidade para incluí-lo no orçamento.</DialogDescription>
         </DialogHeader>
 
         {!selectedProduct ? (
@@ -759,6 +782,8 @@ function AddItemDialog({ order }: { order: any }) {
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
+                id="product-search"
+                aria-label="Buscar produto"
                 placeholder="Buscar por descrição ou código..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -774,9 +799,10 @@ function AddItemDialog({ order }: { order: any }) {
                 <div className="text-center py-8 text-muted-foreground">Nenhum produto encontrado.</div>
               )}
               {productsPage?.items.map(p => (
-                <div
+                <button
+                  type="button"
                   key={p.id}
-                  className="p-3 rounded-lg border border-border bg-card hover:border-primary/50 cursor-pointer transition-all flex justify-between items-center group"
+                  className="w-full p-3 rounded-lg border border-border bg-card text-left hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all flex justify-between items-center group"
                   onClick={() => setSelectedProduct(p)}
                   data-testid={`product-option-${p.id}`}
                 >
@@ -788,7 +814,7 @@ function AddItemDialog({ order }: { order: any }) {
                     </div>
                   </div>
                   <Plus className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -817,10 +843,12 @@ function AddItemDialog({ order }: { order: any }) {
                     <div className="text-[10px] text-muted-foreground mt-1">Origem: {priceRes.origin}</div>
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground uppercase">Quantidade</Label>
+                    <Label htmlFor="item-quantity" className="text-xs text-muted-foreground uppercase">Quantidade <span aria-hidden="true">*</span></Label>
                     <Input
                       value={quantity}
+                      id="item-quantity"
                       onChange={e => setQuantity(e.target.value)}
+                      aria-required="true"
                       className="mt-1 font-mono-brand text-lg"
                       data-testid="input-item-quantity"
                     />
@@ -829,8 +857,9 @@ function AddItemDialog({ order }: { order: any }) {
 
                 <div className="border border-border rounded-lg p-4 bg-card">
                   <div className="flex items-center justify-between mb-4">
-                    <Label className="text-sm font-semibold cursor-pointer flex items-center gap-2" onClick={() => setIsSpecial(!isSpecial)}>
+                    <Label htmlFor="special-price" className="text-sm font-semibold cursor-pointer flex items-center gap-2">
                       <input
+                        id="special-price"
                         type="checkbox"
                         checked={isSpecial}
                         onChange={e => setIsSpecial(e.target.checked)}
@@ -848,10 +877,12 @@ function AddItemDialog({ order }: { order: any }) {
                         <p>Atenção: Ao usar preço especial, os descontos globais do cabeçalho <strong>não serão aplicados</strong> a este item.</p>
                       </div>
                       <div>
-                        <Label className="text-xs text-muted-foreground uppercase">Preço Especial (Unitário)</Label>
+                        <Label htmlFor="item-special-price" className="text-xs text-muted-foreground uppercase">Preço Especial (Unitário) <span aria-hidden="true">*</span></Label>
                         <Input
                           value={specialPrice}
+                          id="item-special-price"
                           onChange={e => setSpecialPrice(e.target.value)}
+                          aria-required="true"
                           className="mt-1 font-mono-brand"
                           placeholder="0,00"
                           data-testid="input-special-price"
@@ -904,6 +935,7 @@ function EditItemDialog({ order, item }: { order: any, item: OrderItem }) {
   const { toast } = useToast();
 
   const updateOrderItem = useUpdateOrderItem();
+  const updateItemLock = useRef(new SubmissionLock()).current;
 
   // Reset state on open change
   useEffect(() => {
@@ -915,6 +947,7 @@ function EditItemDialog({ order, item }: { order: any, item: OrderItem }) {
   }, [open, item]);
 
   const handleUpdate = () => {
+    if (updateOrderItem.isPending) return;
     const qStr = validateAndFormatQuantity(quantity);
     if (!qStr) {
       toast({ title: "Quantidade inválida", variant: "destructive" });
@@ -937,6 +970,7 @@ function EditItemDialog({ order, item }: { order: any, item: OrderItem }) {
       payload.specialUnitPrice = null;
     }
 
+    if (!updateItemLock.acquire()) return;
     updateOrderItem.mutate(
       { id: order.id, itemId: item.id, data: payload },
       {
@@ -947,8 +981,9 @@ function EditItemDialog({ order, item }: { order: any, item: OrderItem }) {
           setOpen(false);
         },
         onError: (err: any) => {
-          toast({ title: "Erro ao atualizar", description: err.message, variant: "destructive" });
-        }
+          toast({ title: "Não foi possível atualizar o item", description: getOrderErrorMessage(err), variant: "destructive" });
+        },
+        onSettled: () => { updateItemLock.release(); },
       }
     );
   };
@@ -956,13 +991,14 @@ function EditItemDialog({ order, item }: { order: any, item: OrderItem }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" data-testid={`button-edit-item-${item.id}`}>
+        <Button variant="ghost" size="icon" aria-label={`Editar item ${item.productCodeSnapshot}`} className="h-8 w-8 text-muted-foreground hover:text-foreground" data-testid={`button-edit-item-${item.id}`}>
           <Edit2 className="h-4 w-4" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle>Editar Item</DialogTitle>
+          <DialogDescription>Atualize a quantidade ou o preço especial deste item.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
@@ -977,10 +1013,12 @@ function EditItemDialog({ order, item }: { order: any, item: OrderItem }) {
               <div className="font-mono-brand text-xl mt-1 font-medium">{formatUnitPrice(item.suggestedUnitPrice)}</div>
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground uppercase">Quantidade</Label>
+              <Label htmlFor={`edit-quantity-${item.id}`} className="text-xs text-muted-foreground uppercase">Quantidade <span aria-hidden="true">*</span></Label>
               <Input
                 value={quantity}
+                id={`edit-quantity-${item.id}`}
                 onChange={e => setQuantity(e.target.value)}
+                aria-required="true"
                 className="mt-1 font-mono-brand text-lg"
                 data-testid={`input-edit-quantity-${item.id}`}
               />
@@ -989,8 +1027,9 @@ function EditItemDialog({ order, item }: { order: any, item: OrderItem }) {
 
           <div className="border border-border rounded-lg p-4 bg-card">
             <div className="flex items-center justify-between mb-4">
-              <Label className="text-sm font-semibold cursor-pointer flex items-center gap-2" onClick={() => setIsSpecial(!isSpecial)}>
+              <Label htmlFor={`edit-special-${item.id}`} className="text-sm font-semibold cursor-pointer flex items-center gap-2">
                 <input
+                  id={`edit-special-${item.id}`}
                   type="checkbox"
                   checked={isSpecial}
                   onChange={e => setIsSpecial(e.target.checked)}
@@ -1008,10 +1047,12 @@ function EditItemDialog({ order, item }: { order: any, item: OrderItem }) {
                   <p>Atenção: Ao usar preço especial, os descontos globais do cabeçalho <strong>não serão aplicados</strong> a este item.</p>
                 </div>
                 <div>
-                  <Label className="text-xs text-muted-foreground uppercase">Preço Especial (Unitário)</Label>
+                  <Label htmlFor={`edit-special-price-${item.id}`} className="text-xs text-muted-foreground uppercase">Preço Especial (Unitário) <span aria-hidden="true">*</span></Label>
                   <Input
                     value={specialPrice}
+                    id={`edit-special-price-${item.id}`}
                     onChange={e => setSpecialPrice(e.target.value)}
+                    aria-required="true"
                     className="mt-1 font-mono-brand"
                     placeholder="0,00"
                     data-testid={`input-edit-special-price-${item.id}`}
@@ -1046,10 +1087,12 @@ function EditItemDialog({ order, item }: { order: any, item: OrderItem }) {
 
 function DeleteItemButton({ orderId, itemId, version }: { orderId: string, itemId: string, version: number }) {
   const deleteOrderItem = useDeleteOrderItem();
+  const deleteLock = useRef(new SubmissionLock()).current;
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const handleDelete = () => {
+    if (deleteOrderItem.isPending || !deleteLock.acquire()) return;
     deleteOrderItem.mutate(
       { id: orderId, itemId, data: { version } },
       {
@@ -1059,8 +1102,9 @@ function DeleteItemButton({ orderId, itemId, version }: { orderId: string, itemI
           queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
         },
         onError: (err: any) => {
-          toast({ title: "Erro ao remover", description: err.message, variant: "destructive" });
-        }
+          toast({ title: "Não foi possível remover o item", description: getOrderErrorMessage(err), variant: "destructive" });
+        },
+        onSettled: () => { deleteLock.release(); },
       }
     );
   };
@@ -1068,13 +1112,14 @@ function DeleteItemButton({ orderId, itemId, version }: { orderId: string, itemI
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive transition-colors" data-testid={`button-delete-item-${itemId}`}>
+        <Button variant="ghost" size="icon" aria-label="Remover item" className="h-8 w-8 text-muted-foreground hover:text-destructive transition-colors" data-testid={`button-delete-item-${itemId}`}>
           <Trash2 className="h-4 w-4" />
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Remover Item?</DialogTitle>
+          <DialogDescription>Confirme a remoção deste produto do orçamento.</DialogDescription>
         </DialogHeader>
         <div className="py-4">
           <p>Deseja realmente remover este produto do orçamento?</p>

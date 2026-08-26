@@ -1,0 +1,35 @@
+{
+  "benchmark": "phase6-local-homologation",
+  "run_id": null,
+  "generated_at": null,
+  "git_commit": null,
+  "environment": {
+    "node_env": "non-production",
+    "database_environment": null,
+    "host_cpu": null,
+    "database_version": null,
+    "dataset_description": "Unique Phase 6 fixture; record surrounding dataset size."
+  },
+  "iterations": null,
+  "metrics": {
+    "login": { "requests": null, "p50_ms": null, "p95_ms": null, "throughput_requests_per_second": null, "error_rate": null },
+    "customer_search": { "requests": null, "p50_ms": null, "p95_ms": null, "throughput_requests_per_second": null, "error_rate": null },
+    "product_search": { "requests": null, "p50_ms": null, "p95_ms": null, "throughput_requests_per_second": null, "error_rate": null },
+    "pricing_resolve": { "requests": null, "p50_ms": null, "p95_ms": null, "throughput_requests_per_second": null, "error_rate": null },
+    "order_create": { "requests": null, "p50_ms": null, "p95_ms": null, "throughput_requests_per_second": null, "error_rate": null },
+    "order_add_item": { "requests": null, "p50_ms": null, "p95_ms": null, "throughput_requests_per_second": null, "error_rate": null },
+    "order_submit": { "requests": null, "p50_ms": null, "p95_ms": null, "throughput_requests_per_second": null, "error_rate": null },
+    "erp_queue": { "requests": null, "p50_ms": null, "p95_ms": null, "throughput_requests_per_second": null, "error_rate": null }
+  },
+  "query_plans": {
+    "customer_search_explain_json": null,
+    "erp_queue_explain_json": null,
+    "interpretation": null
+  },
+  "acceptance": {
+    "functional_regression_suite_passed": null,
+    "benchmark_exit_code": null,
+    "reviewer": null,
+    "notes": null
+  }
+}

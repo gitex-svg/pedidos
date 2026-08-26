@@ -1,0 +1,80 @@
+{
+  "benchmark": "phase6-local-homologation",
+  "generated_at": "2026-08-26T12:21:27.000Z",
+  "environment": {
+    "node_env": "test",
+    "server_binding": "127.0.0.1 (localhost)",
+    "database_environment": "non-production Replit PostgreSQL"
+  },
+  "iterations": 10,
+  "execution_model": "local sequential baseline only; not a production-scale capacity result",
+  "metrics": {
+    "login": {
+      "requests": 10,
+      "p50_ms": 94.823,
+      "p95_ms": 165.757,
+      "throughput_requests_per_second": 9.905,
+      "error_rate": 0
+    },
+    "customer_search": {
+      "requests": 10,
+      "p50_ms": 5.143,
+      "p95_ms": 30.179,
+      "throughput_requests_per_second": 120.668,
+      "error_rate": 0
+    },
+    "product_search": {
+      "requests": 10,
+      "p50_ms": 4.518,
+      "p95_ms": 10.261,
+      "throughput_requests_per_second": 179.961,
+      "error_rate": 0
+    },
+    "pricing_resolve": {
+      "requests": 10,
+      "p50_ms": 6.335,
+      "p95_ms": 13.467,
+      "throughput_requests_per_second": 136.623,
+      "error_rate": 0
+    },
+    "order_create": {
+      "requests": 10,
+      "p50_ms": 12.195,
+      "p95_ms": 29.094,
+      "throughput_requests_per_second": 68.433,
+      "error_rate": 0
+    },
+    "order_add_item": {
+      "requests": 10,
+      "p50_ms": 16.842,
+      "p95_ms": 33.941,
+      "throughput_requests_per_second": 53.963,
+      "error_rate": 0
+    },
+    "order_submit": {
+      "requests": 10,
+      "p50_ms": 17.305,
+      "p95_ms": 24.634,
+      "throughput_requests_per_second": 55.064,
+      "error_rate": 0
+    },
+    "erp_queue": {
+      "requests": 1,
+      "p50_ms": 3.767,
+      "p95_ms": 3.767,
+      "throughput_requests_per_second": 265.496,
+      "error_rate": 0
+    }
+  },
+  "query_plans": {
+    "customer_search": {
+      "node_type": "Seq Scan",
+      "total_cost": 1.11
+    },
+    "erp_queue": {
+      "node_type": "Seq Scan",
+      "total_cost": 1.09
+    },
+    "interpretation": "Both plans were captured on the intentionally tiny isolated fixture. Sequential scans and these low costs are expected at this size; this is not evidence to add an index."
+  }
+}

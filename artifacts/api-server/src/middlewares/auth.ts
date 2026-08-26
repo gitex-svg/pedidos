@@ -3,6 +3,9 @@ import { auth } from "../auth/better-auth";
 import type { User } from "@workspace/db";
 import { hasRole, type AppRole } from "../auth/policy";
 import { toWebHeaders } from "../auth/http";
+import { loadConfig } from "../lib/config";
+
+const config = loadConfig(process.env, { requirePort: false });
 
 declare global {
   namespace Express {
@@ -32,27 +35,33 @@ export function requireRole(...roles: AppRole[]) {
 
 export function requireTrustedOrigin(req: Request, res: Response, next: NextFunction) {
   const origin = req.get("origin");
-  if (!origin) return next();
+  if (!origin) {
+    // Local automated clients and non-browser development tooling do not send
+    // Origin. Production cookie mutations must always supply a trusted origin.
+    if (!config.production) {
+      next();
+      return;
+    }
+    res.status(403).json({ error: "Origem da requisição não permitida.", requestId: req.id });
+    return;
+  }
 
   let parsed: URL;
   try {
     parsed = new URL(origin);
   } catch {
-    return res.status(403).json({ error: "Origem da requisição não permitida." });
+    return res.status(403).json({ error: "Origem da requisição não permitida.", requestId: req.id });
   }
 
-  const exactOrigins = [
-    process.env.BETTER_AUTH_URL ? new URL(process.env.BETTER_AUTH_URL).origin : null,
-    process.env.REPLIT_DEV_DOMAIN ? `https://${process.env.REPLIT_DEV_DOMAIN}` : null,
-  ].filter(Boolean);
+  const exactOrigins = config.trustedOrigins;
   const isExact = exactOrigins.includes(parsed.origin);
   const isLocalDevelopment =
-    process.env.NODE_ENV !== "production" &&
+    !config.production &&
     parsed.protocol === "http:" &&
     (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1");
 
   if (!isExact && !isLocalDevelopment) {
-    return res.status(403).json({ error: "Origem da requisição não permitida." });
+    return res.status(403).json({ error: "Origem da requisição não permitida.", requestId: req.id });
   }
   return next();
 }
