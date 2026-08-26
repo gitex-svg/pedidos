@@ -12,6 +12,28 @@ Crie um usuário dedicado, por exemplo `deploy`, e conceda somente o acesso
 necessário ao Docker (a participação no grupo `docker` é equivalente a acesso
 administrativo ao host e deve ser controlada). Não opere o serviço como `root`.
 
+Para uma VPS nova com **Ubuntu 24.04 LTS**, o repositório fornece um bootstrap
+idempotente para instalar os pacotes e serviços base. Execute-o como `root`,
+revise as variáveis opcionais e não coloque secrets no comando:
+
+```bash
+DEPLOY_USER=deploy \
+APP_DIR=/srv/pedidos-gitex \
+BACKUP_DIR=/var/backups/pedidos-gitex \
+SSH_PORT=22 \
+ENABLE_UFW=1 \
+bash deploy/scripts/bootstrap-ubuntu-24.04.sh
+```
+
+O script instala Docker Engine com Compose plugin, Nginx, Certbot, Git, UFW,
+Fail2ban, `unattended-upgrades`, ferramentas TLS e utilitários operacionais;
+habilita os serviços, prepara os diretórios e configura rotação de logs do
+Docker apenas quando não existe configuração prévia. Ele recusa outros
+sistemas/versões do Ubuntu, preserva um `daemon.json` existente e não clona
+Git, cria secrets, altera SSH, configura DNS, emite certificado, executa
+migrations ou inicia a aplicação. A associação ao grupo `docker` deve ser
+tratada como acesso administrativo.
+
 Instale a chave pública SSH do operador em `~deploy/.ssh/authorized_keys`, com
 permissões `700` no diretório e `600` no arquivo. Em `sshd_config`, desabilite
 login de root e autenticação por senha depois de testar uma segunda sessão por

@@ -136,8 +136,9 @@ Defina `BETTER_AUTH_URL` com a origem pública exata da aplicação, por exemplo
 `https://pedidos.exemplo.com.br`. A API interrompe a inicialização em produção
 quando essa configuração estiver ausente, evitando aceitar origens genéricas.
 
-Para VPS Ubuntu com Docker Compose, Nginx same-origin, migrations explícitas e
-operação de backup/restore, siga `docs/VPS_DEPLOYMENT.md`. Os comandos
+Para VPS Ubuntu 24.04 LTS com Docker Compose, Nginx same-origin, migrations
+explícitas e operação de backup/restore, siga `docs/VPS_DEPLOYMENT.md`. O
+bootstrap inicial é `deploy/scripts/bootstrap-ubuntu-24.04.sh`; os comandos
 operacionais são `deploy/scripts/deploy.sh`,
 `deploy/scripts/backup-postgres.sh` e
 `deploy/scripts/restore-postgres-isolated.sh`; eles usam
