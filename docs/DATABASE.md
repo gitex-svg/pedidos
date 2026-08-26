@@ -1,3 +1,12 @@
+# Pedidos da Fase 4
+
+`orders` e `order_items` preservam snapshots comerciais e de identificação ERP
+do produto. A sequence PostgreSQL `orders_internal_number_seq` aloca
+`internal_number`; sequences são seguras sob concorrência e podem conter
+lacunas. As colunas usam `NUMERIC`: unitários `(18,6)`, quantidades `(18,4)`,
+descontos `(7,4)` e totais persistidos de itens/pedidos `(20,2)`.
+`orders.version` fornece a verificação otimista, enquanto as mutações também
+bloqueiam a linha do pedido com `FOR UPDATE`.
 ## Concorrência de integração
 
 UPSERTs da Fase 2 usam `ON CONFLICT DO UPDATE` condicionado a uma versão de origem estritamente

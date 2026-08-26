@@ -9,7 +9,10 @@ Os lotes ERP, inclusive tabelas de preço e seus itens, retornam contadores, `it
 
 # Pedidos Fitas Gitex
 
-Fundação do sistema web para representantes comerciais criarem e acompanharem pedidos e orçamentos. A Fase 1 entrega autenticação e autorização, a Fase 2 entrega os cadastros sincronizados pelo ERP e a Fase 3 entrega tabelas e resolução de preços.
+Sistema web mobile-first para representantes comerciais criarem e acompanharem
+orçamentos. A Fase 1 entrega autenticação e autorização, a Fase 2 os cadastros
+sincronizados pelo ERP, a Fase 3 o motor de preços e a Fase 4 a digitação,
+totalização e finalização imutável dos pedidos.
 
 ## Fase 2 — catálogo sincronizado
 
@@ -42,8 +45,26 @@ API como strings decimais e são armazenados em `NUMERIC(18,6)`; não são
 convertidos em `number` JavaScript. A entrada aceita zeros à esquerda e de uma
 a seis casas; o servidor completa a fração para seis casas na saída.
 
-Pedidos, itens de pedido, descontos, preço especial e integração de pedidos
-continuam fora do escopo da Fase 3.
+## Fase 4 — orçamentos
+
+Representantes criam orçamentos em `DRAFT`, alteram a capa e os descontos,
+incluem produtos com preço sugerido pelo motor da Fase 3 e podem definir preço
+especial. Ao finalizar, o estado passa a `SUBMITTED` e fica imutável. ADMIN
+consulta todos os pedidos, sem permissão de escrita.
+
+- Listagem e digitação: `/orders`, `/orders/new` e `/orders/:id`.
+- API autenticada: `/api/v1/orders` e sub-recursos de itens/finalização.
+- O representante é sempre derivado da sessão; o frontend não fornece
+  `representative_id`, status, totais ou snapshots.
+- Quantidades, preços e descontos trafegam como strings decimais. Os descontos
+  D1–D4 são aplicados em cascata com aritmética exata.
+- Cada total de item é arredondado para duas casas com `ROUND_HALF_UP`; o total
+  do pedido é a soma desses itens já arredondados.
+- Preços e dados comerciais do produto são snapshots. Preço especial preserva
+  o preço sugerido para auditoria e não recebe os descontos da capa.
+
+A integração de saída de pedidos com o ERP, confirmação, faturamento e estados
+comerciais posteriores permanecem fora do escopo desta fase.
 
 ## Executar
 
@@ -84,4 +105,4 @@ Defina `BETTER_AUTH_URL` com a origem pública exata da aplicação, por exemplo
 `https://pedidos.exemplo.com.br`. A API interrompe a inicialização em produção
 quando essa configuração estiver ausente, evitando aceitar origens genéricas.
 
-Consulte `docs/` para arquitetura, banco, regras e contratos ERP das Fases 2 e 3.
+Consulte `docs/` para arquitetura, banco, regras e contratos ERP das Fases 2 a 4.

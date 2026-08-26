@@ -7,6 +7,23 @@
 
 # Changelog
 
+## Fase 4 — Orçamentos
+
+- Pedidos `DRAFT`/`SUBMITTED` com número interno gerado por sequence, escopo por
+  representante e consulta global read-only para ADMIN.
+- CRUD de capa e itens com lock pessimista, versão otimista e imutabilidade
+  após finalização.
+- Snapshots de produto, preço sugerido, origem e tabela no momento da inclusão.
+- Descontos D1–D4 em cascata com aritmética exata; unitários em seis casas,
+  quantidades em quatro e totais em duas.
+- Total do pedido calculado pela soma dos totais de itens já arredondados.
+- Preço especial sem descontos, preservando preço sugerido e descontos copiados
+  para auditoria.
+- Interface mobile-first para listar, criar, editar itens e finalizar pedidos,
+  integrada apenas aos contratos OpenAPI gerados.
+- Testes HTTP/PostgreSQL para autorização, snapshots, precisão, concorrência,
+  finalização e imutabilidade.
+
 ## Fase 3 — Motor de preços
 
 - Tabelas `STANDARD`, `REPRESENTATIVE` e `CUSTOMER` sincronizadas pelo ERP,

@@ -6,6 +6,7 @@ import adminRouter from "./admin";
 import catalogRouter from "./catalog";
 import erpRouter from "./erp";
 import pricingRouter from "./pricing";
+import ordersRouter from "./orders";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(adminRouter);
 router.use(catalogRouter);
 router.use(erpRouter);
 router.use(pricingRouter);
+router.use(ordersRouter);
 
 export default router;

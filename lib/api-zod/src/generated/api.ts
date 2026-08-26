@@ -291,6 +291,756 @@ export const ResolvePriceResponse = zod.union([zod.object({
 }).describe('Ausência de preço não é representada por zero.')])
 
 
+export const listOrdersQueryPageDefault = 1;
+
+
+
+
+export const ListOrdersQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(listOrdersQueryPageDefault),
+  "pageSize": zod.coerce.number().int().min(1).optional().describe('Tamanho efetivo padrão é 20; valores acima de 100 são limitados a 100. Quando informado, tem prioridade sobre limit.'),
+  "status": zod.enum(['DRAFT', 'SUBMITTED']).optional(),
+  "number": zod.coerce.number().int().optional(),
+  "customer": zod.coerce.string().optional()
+})
+
+export const listOrdersResponseItemsItemDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const listOrdersResponseItemsItemDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const listOrdersResponseItemsItemDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const listOrdersResponseItemsItemDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const listOrdersResponseItemsItemGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const listOrdersResponseItemsItemNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+
+
+export const ListOrdersResponse = zod.object({
+  "page": zod.int(),
+  "pageSize": zod.int(),
+  "totalItems": zod.int(),
+  "totalPages": zod.int(),
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "internalNumber": zod.number(),
+  "representativeId": zod.uuid(),
+  "customerId": zod.uuid(),
+  "paymentTermId": zod.uuid(),
+  "carrierId": zod.uuid().nullable(),
+  "notes": zod.string().nullable(),
+  "discount1": zod.string().regex(listOrdersResponseItemsItemDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(listOrdersResponseItemsItemDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(listOrdersResponseItemsItemDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(listOrdersResponseItemsItemDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "grossTotal": zod.string().regex(listOrdersResponseItemsItemGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(listOrdersResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
+  "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
+  "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
+  "erpOrderNumber": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable(),
+  "erpSyncedAt": zod.coerce.date().nullable(),
+  "createdByUserId": zod.uuid(),
+  "version": zod.int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "customerName": zod.string(),
+  "customerErpCode": zod.string(),
+  "paymentTermDescription": zod.string(),
+  "paymentTermErpCode": zod.string(),
+  "carrierName": zod.string().nullable(),
+  "carrierErpCode": zod.string().nullable()
+}).describe('Ordem persistida; identidade, estado, totais e snapshots são gerados exclusivamente pelo servidor.'))
+})
+
+
+export const createOrderBodyNotesMax = 5000;
+
+export const createOrderBodyDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const createOrderBodyDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const createOrderBodyDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const createOrderBodyDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+
+
+export const CreateOrderBody = zod.object({
+  "customerId": zod.uuid(),
+  "paymentTermId": zod.uuid(),
+  "carrierId": zod.uuid().nullish(),
+  "notes": zod.string().max(createOrderBodyNotesMax).nullish(),
+  "discount1": zod.string().regex(createOrderBodyDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(createOrderBodyDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(createOrderBodyDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(createOrderBodyDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.')
+})
+
+export const createOrderResponseDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const createOrderResponseDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const createOrderResponseDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const createOrderResponseDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const createOrderResponseGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const createOrderResponseNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const createOrderResponseItemsItemQuantityRegExp = new RegExp('^[0-9]+\\.[0-9]{4}$');
+export const createOrderResponseItemsItemSuggestedUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const createOrderResponseItemsItemEffectiveUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const createOrderResponseItemsItemSpecialUnitPriceOneRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const createOrderResponseItemsItemDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const createOrderResponseItemsItemDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const createOrderResponseItemsItemDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const createOrderResponseItemsItemDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const createOrderResponseItemsItemNetUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const createOrderResponseItemsItemGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const createOrderResponseItemsItemNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+
+
+export const CreateOrderResponse = zod.object({
+  "id": zod.uuid(),
+  "internalNumber": zod.number(),
+  "representativeId": zod.uuid(),
+  "customerId": zod.uuid(),
+  "paymentTermId": zod.uuid(),
+  "carrierId": zod.uuid().nullable(),
+  "notes": zod.string().nullable(),
+  "discount1": zod.string().regex(createOrderResponseDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(createOrderResponseDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(createOrderResponseDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(createOrderResponseDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "grossTotal": zod.string().regex(createOrderResponseGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(createOrderResponseNetTotalRegExp).describe('Total decimal exato'),
+  "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
+  "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
+  "erpOrderNumber": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable(),
+  "erpSyncedAt": zod.coerce.date().nullable(),
+  "createdByUserId": zod.uuid(),
+  "version": zod.int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "customerName": zod.string(),
+  "customerErpCode": zod.string(),
+  "paymentTermDescription": zod.string(),
+  "paymentTermErpCode": zod.string(),
+  "carrierName": zod.string().nullable(),
+  "carrierErpCode": zod.string().nullable(),
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "orderId": zod.uuid(),
+  "productId": zod.uuid(),
+  "groupCode": zod.string(),
+  "typeCode": zod.string(),
+  "productCode": zod.string(),
+  "referenceCode": zod.string(),
+  "productCodeSnapshot": zod.string(),
+  "descriptionSnapshot": zod.string(),
+  "packagingSnapshot": zod.string().nullable(),
+  "widthSnapshot": zod.string().nullable(),
+  "colorSnapshot": zod.string().nullable(),
+  "quantity": zod.string().regex(createOrderResponseItemsItemQuantityRegExp),
+  "suggestedUnitPrice": zod.string().regex(createOrderResponseItemsItemSuggestedUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "suggestedPriceOrigin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD']),
+  "suggestedPriceTableId": zod.uuid().nullable(),
+  "suggestedPriceTableErpCode": zod.string().nullable(),
+  "effectiveUnitPrice": zod.string().regex(createOrderResponseItemsItemEffectiveUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "effectivePriceOrigin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD', 'SPECIAL']),
+  "isSpecialPrice": zod.boolean(),
+  "specialUnitPrice": zod.union([zod.string().regex(createOrderResponseItemsItemSpecialUnitPriceOneRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),zod.null()]),
+  "discount1": zod.string().regex(createOrderResponseItemsItemDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(createOrderResponseItemsItemDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(createOrderResponseItemsItemDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(createOrderResponseItemsItemDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discountsApplied": zod.boolean(),
+  "netUnitPrice": zod.string().regex(createOrderResponseItemsItemNetUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "grossTotal": zod.string().regex(createOrderResponseItemsItemGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(createOrderResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Snapshot imutável do produto e preço no momento da inclusão.'))
+})
+
+
+export const GetOrderParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const getOrderResponseDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getOrderResponseDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getOrderResponseDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getOrderResponseDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getOrderResponseGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const getOrderResponseNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const getOrderResponseItemsItemQuantityRegExp = new RegExp('^[0-9]+\\.[0-9]{4}$');
+export const getOrderResponseItemsItemSuggestedUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const getOrderResponseItemsItemEffectiveUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const getOrderResponseItemsItemSpecialUnitPriceOneRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const getOrderResponseItemsItemDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getOrderResponseItemsItemDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getOrderResponseItemsItemDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getOrderResponseItemsItemDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getOrderResponseItemsItemNetUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const getOrderResponseItemsItemGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const getOrderResponseItemsItemNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+
+
+export const GetOrderResponse = zod.object({
+  "id": zod.uuid(),
+  "internalNumber": zod.number(),
+  "representativeId": zod.uuid(),
+  "customerId": zod.uuid(),
+  "paymentTermId": zod.uuid(),
+  "carrierId": zod.uuid().nullable(),
+  "notes": zod.string().nullable(),
+  "discount1": zod.string().regex(getOrderResponseDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(getOrderResponseDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(getOrderResponseDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(getOrderResponseDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "grossTotal": zod.string().regex(getOrderResponseGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(getOrderResponseNetTotalRegExp).describe('Total decimal exato'),
+  "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
+  "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
+  "erpOrderNumber": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable(),
+  "erpSyncedAt": zod.coerce.date().nullable(),
+  "createdByUserId": zod.uuid(),
+  "version": zod.int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "customerName": zod.string(),
+  "customerErpCode": zod.string(),
+  "paymentTermDescription": zod.string(),
+  "paymentTermErpCode": zod.string(),
+  "carrierName": zod.string().nullable(),
+  "carrierErpCode": zod.string().nullable(),
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "orderId": zod.uuid(),
+  "productId": zod.uuid(),
+  "groupCode": zod.string(),
+  "typeCode": zod.string(),
+  "productCode": zod.string(),
+  "referenceCode": zod.string(),
+  "productCodeSnapshot": zod.string(),
+  "descriptionSnapshot": zod.string(),
+  "packagingSnapshot": zod.string().nullable(),
+  "widthSnapshot": zod.string().nullable(),
+  "colorSnapshot": zod.string().nullable(),
+  "quantity": zod.string().regex(getOrderResponseItemsItemQuantityRegExp),
+  "suggestedUnitPrice": zod.string().regex(getOrderResponseItemsItemSuggestedUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "suggestedPriceOrigin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD']),
+  "suggestedPriceTableId": zod.uuid().nullable(),
+  "suggestedPriceTableErpCode": zod.string().nullable(),
+  "effectiveUnitPrice": zod.string().regex(getOrderResponseItemsItemEffectiveUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "effectivePriceOrigin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD', 'SPECIAL']),
+  "isSpecialPrice": zod.boolean(),
+  "specialUnitPrice": zod.union([zod.string().regex(getOrderResponseItemsItemSpecialUnitPriceOneRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),zod.null()]),
+  "discount1": zod.string().regex(getOrderResponseItemsItemDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(getOrderResponseItemsItemDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(getOrderResponseItemsItemDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(getOrderResponseItemsItemDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discountsApplied": zod.boolean(),
+  "netUnitPrice": zod.string().regex(getOrderResponseItemsItemNetUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "grossTotal": zod.string().regex(getOrderResponseItemsItemGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(getOrderResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Snapshot imutável do produto e preço no momento da inclusão.'))
+})
+
+
+export const UpdateOrderParams = zod.object({
+  "id": zod.uuid()
+})
+
+
+export const updateOrderBodyNotesMax = 5000;
+
+export const updateOrderBodyDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderBodyDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderBodyDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderBodyDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+
+
+export const UpdateOrderBody = zod.object({
+  "version": zod.int().min(1),
+  "customerId": zod.uuid().optional(),
+  "paymentTermId": zod.uuid().optional(),
+  "carrierId": zod.uuid().nullish(),
+  "notes": zod.string().max(updateOrderBodyNotesMax).nullish(),
+  "discount1": zod.string().regex(updateOrderBodyDiscount1RegExp).optional().describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(updateOrderBodyDiscount2RegExp).optional().describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(updateOrderBodyDiscount3RegExp).optional().describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(updateOrderBodyDiscount4RegExp).optional().describe('Percentual decimal exato entre 0 e 100 com até quatro casas.')
+})
+
+export const updateOrderResponseDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderResponseDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderResponseDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderResponseDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderResponseGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const updateOrderResponseNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const updateOrderResponseItemsItemQuantityRegExp = new RegExp('^[0-9]+\\.[0-9]{4}$');
+export const updateOrderResponseItemsItemSuggestedUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const updateOrderResponseItemsItemEffectiveUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const updateOrderResponseItemsItemSpecialUnitPriceOneRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const updateOrderResponseItemsItemDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderResponseItemsItemDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderResponseItemsItemDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderResponseItemsItemDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderResponseItemsItemNetUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const updateOrderResponseItemsItemGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const updateOrderResponseItemsItemNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+
+
+export const UpdateOrderResponse = zod.object({
+  "id": zod.uuid(),
+  "internalNumber": zod.number(),
+  "representativeId": zod.uuid(),
+  "customerId": zod.uuid(),
+  "paymentTermId": zod.uuid(),
+  "carrierId": zod.uuid().nullable(),
+  "notes": zod.string().nullable(),
+  "discount1": zod.string().regex(updateOrderResponseDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(updateOrderResponseDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(updateOrderResponseDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(updateOrderResponseDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "grossTotal": zod.string().regex(updateOrderResponseGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(updateOrderResponseNetTotalRegExp).describe('Total decimal exato'),
+  "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
+  "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
+  "erpOrderNumber": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable(),
+  "erpSyncedAt": zod.coerce.date().nullable(),
+  "createdByUserId": zod.uuid(),
+  "version": zod.int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "customerName": zod.string(),
+  "customerErpCode": zod.string(),
+  "paymentTermDescription": zod.string(),
+  "paymentTermErpCode": zod.string(),
+  "carrierName": zod.string().nullable(),
+  "carrierErpCode": zod.string().nullable(),
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "orderId": zod.uuid(),
+  "productId": zod.uuid(),
+  "groupCode": zod.string(),
+  "typeCode": zod.string(),
+  "productCode": zod.string(),
+  "referenceCode": zod.string(),
+  "productCodeSnapshot": zod.string(),
+  "descriptionSnapshot": zod.string(),
+  "packagingSnapshot": zod.string().nullable(),
+  "widthSnapshot": zod.string().nullable(),
+  "colorSnapshot": zod.string().nullable(),
+  "quantity": zod.string().regex(updateOrderResponseItemsItemQuantityRegExp),
+  "suggestedUnitPrice": zod.string().regex(updateOrderResponseItemsItemSuggestedUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "suggestedPriceOrigin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD']),
+  "suggestedPriceTableId": zod.uuid().nullable(),
+  "suggestedPriceTableErpCode": zod.string().nullable(),
+  "effectiveUnitPrice": zod.string().regex(updateOrderResponseItemsItemEffectiveUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "effectivePriceOrigin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD', 'SPECIAL']),
+  "isSpecialPrice": zod.boolean(),
+  "specialUnitPrice": zod.union([zod.string().regex(updateOrderResponseItemsItemSpecialUnitPriceOneRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),zod.null()]),
+  "discount1": zod.string().regex(updateOrderResponseItemsItemDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(updateOrderResponseItemsItemDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(updateOrderResponseItemsItemDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(updateOrderResponseItemsItemDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discountsApplied": zod.boolean(),
+  "netUnitPrice": zod.string().regex(updateOrderResponseItemsItemNetUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "grossTotal": zod.string().regex(updateOrderResponseItemsItemGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(updateOrderResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Snapshot imutável do produto e preço no momento da inclusão.'))
+})
+
+
+export const SubmitOrderParams = zod.object({
+  "id": zod.uuid()
+})
+
+
+
+
+export const SubmitOrderBody = zod.object({
+  "version": zod.int().min(1)
+})
+
+export const submitOrderResponseDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const submitOrderResponseDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const submitOrderResponseDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const submitOrderResponseDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const submitOrderResponseGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const submitOrderResponseNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const submitOrderResponseItemsItemQuantityRegExp = new RegExp('^[0-9]+\\.[0-9]{4}$');
+export const submitOrderResponseItemsItemSuggestedUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const submitOrderResponseItemsItemEffectiveUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const submitOrderResponseItemsItemSpecialUnitPriceOneRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const submitOrderResponseItemsItemDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const submitOrderResponseItemsItemDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const submitOrderResponseItemsItemDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const submitOrderResponseItemsItemDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const submitOrderResponseItemsItemNetUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const submitOrderResponseItemsItemGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const submitOrderResponseItemsItemNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+
+
+export const SubmitOrderResponse = zod.object({
+  "id": zod.uuid(),
+  "internalNumber": zod.number(),
+  "representativeId": zod.uuid(),
+  "customerId": zod.uuid(),
+  "paymentTermId": zod.uuid(),
+  "carrierId": zod.uuid().nullable(),
+  "notes": zod.string().nullable(),
+  "discount1": zod.string().regex(submitOrderResponseDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(submitOrderResponseDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(submitOrderResponseDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(submitOrderResponseDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "grossTotal": zod.string().regex(submitOrderResponseGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(submitOrderResponseNetTotalRegExp).describe('Total decimal exato'),
+  "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
+  "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
+  "erpOrderNumber": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable(),
+  "erpSyncedAt": zod.coerce.date().nullable(),
+  "createdByUserId": zod.uuid(),
+  "version": zod.int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "customerName": zod.string(),
+  "customerErpCode": zod.string(),
+  "paymentTermDescription": zod.string(),
+  "paymentTermErpCode": zod.string(),
+  "carrierName": zod.string().nullable(),
+  "carrierErpCode": zod.string().nullable(),
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "orderId": zod.uuid(),
+  "productId": zod.uuid(),
+  "groupCode": zod.string(),
+  "typeCode": zod.string(),
+  "productCode": zod.string(),
+  "referenceCode": zod.string(),
+  "productCodeSnapshot": zod.string(),
+  "descriptionSnapshot": zod.string(),
+  "packagingSnapshot": zod.string().nullable(),
+  "widthSnapshot": zod.string().nullable(),
+  "colorSnapshot": zod.string().nullable(),
+  "quantity": zod.string().regex(submitOrderResponseItemsItemQuantityRegExp),
+  "suggestedUnitPrice": zod.string().regex(submitOrderResponseItemsItemSuggestedUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "suggestedPriceOrigin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD']),
+  "suggestedPriceTableId": zod.uuid().nullable(),
+  "suggestedPriceTableErpCode": zod.string().nullable(),
+  "effectiveUnitPrice": zod.string().regex(submitOrderResponseItemsItemEffectiveUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "effectivePriceOrigin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD', 'SPECIAL']),
+  "isSpecialPrice": zod.boolean(),
+  "specialUnitPrice": zod.union([zod.string().regex(submitOrderResponseItemsItemSpecialUnitPriceOneRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),zod.null()]),
+  "discount1": zod.string().regex(submitOrderResponseItemsItemDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(submitOrderResponseItemsItemDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(submitOrderResponseItemsItemDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(submitOrderResponseItemsItemDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discountsApplied": zod.boolean(),
+  "netUnitPrice": zod.string().regex(submitOrderResponseItemsItemNetUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "grossTotal": zod.string().regex(submitOrderResponseItemsItemGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(submitOrderResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Snapshot imutável do produto e preço no momento da inclusão.'))
+})
+
+
+export const AddOrderItemParams = zod.object({
+  "id": zod.uuid()
+})
+
+
+export const addOrderItemBodyQuantityRegExp = new RegExp('^(?:0|[1-9][0-9]{0,13})(?:\\.[0-9]{1,4})?$');
+export const addOrderItemBodySpecialUnitPriceOneRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{1,6}$');
+
+
+export const AddOrderItemBody = zod.object({
+  "version": zod.int().min(1),
+  "productId": zod.uuid(),
+  "quantity": zod.string().regex(addOrderItemBodyQuantityRegExp).describe('Decimal exato positivo'),
+  "specialUnitPrice": zod.union([zod.string().regex(addOrderItemBodySpecialUnitPriceOneRegExp).describe('Decimal exato, com 1 a 12 dígitos inteiros (zeros à esquerda permitidos) e de 1 a 6 casas decimais. Nunca enviar como JSON number; o servidor preserva a parte inteira e completa a fração para seis casas.'),zod.null()]).optional()
+})
+
+export const addOrderItemResponseDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const addOrderItemResponseDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const addOrderItemResponseDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const addOrderItemResponseDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const addOrderItemResponseGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const addOrderItemResponseNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const addOrderItemResponseItemsItemQuantityRegExp = new RegExp('^[0-9]+\\.[0-9]{4}$');
+export const addOrderItemResponseItemsItemSuggestedUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const addOrderItemResponseItemsItemEffectiveUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const addOrderItemResponseItemsItemSpecialUnitPriceOneRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const addOrderItemResponseItemsItemDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const addOrderItemResponseItemsItemDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const addOrderItemResponseItemsItemDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const addOrderItemResponseItemsItemDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const addOrderItemResponseItemsItemNetUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const addOrderItemResponseItemsItemGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const addOrderItemResponseItemsItemNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+
+
+export const AddOrderItemResponse = zod.object({
+  "id": zod.uuid(),
+  "internalNumber": zod.number(),
+  "representativeId": zod.uuid(),
+  "customerId": zod.uuid(),
+  "paymentTermId": zod.uuid(),
+  "carrierId": zod.uuid().nullable(),
+  "notes": zod.string().nullable(),
+  "discount1": zod.string().regex(addOrderItemResponseDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(addOrderItemResponseDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(addOrderItemResponseDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(addOrderItemResponseDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "grossTotal": zod.string().regex(addOrderItemResponseGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(addOrderItemResponseNetTotalRegExp).describe('Total decimal exato'),
+  "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
+  "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
+  "erpOrderNumber": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable(),
+  "erpSyncedAt": zod.coerce.date().nullable(),
+  "createdByUserId": zod.uuid(),
+  "version": zod.int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "customerName": zod.string(),
+  "customerErpCode": zod.string(),
+  "paymentTermDescription": zod.string(),
+  "paymentTermErpCode": zod.string(),
+  "carrierName": zod.string().nullable(),
+  "carrierErpCode": zod.string().nullable(),
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "orderId": zod.uuid(),
+  "productId": zod.uuid(),
+  "groupCode": zod.string(),
+  "typeCode": zod.string(),
+  "productCode": zod.string(),
+  "referenceCode": zod.string(),
+  "productCodeSnapshot": zod.string(),
+  "descriptionSnapshot": zod.string(),
+  "packagingSnapshot": zod.string().nullable(),
+  "widthSnapshot": zod.string().nullable(),
+  "colorSnapshot": zod.string().nullable(),
+  "quantity": zod.string().regex(addOrderItemResponseItemsItemQuantityRegExp),
+  "suggestedUnitPrice": zod.string().regex(addOrderItemResponseItemsItemSuggestedUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "suggestedPriceOrigin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD']),
+  "suggestedPriceTableId": zod.uuid().nullable(),
+  "suggestedPriceTableErpCode": zod.string().nullable(),
+  "effectiveUnitPrice": zod.string().regex(addOrderItemResponseItemsItemEffectiveUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "effectivePriceOrigin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD', 'SPECIAL']),
+  "isSpecialPrice": zod.boolean(),
+  "specialUnitPrice": zod.union([zod.string().regex(addOrderItemResponseItemsItemSpecialUnitPriceOneRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),zod.null()]),
+  "discount1": zod.string().regex(addOrderItemResponseItemsItemDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(addOrderItemResponseItemsItemDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(addOrderItemResponseItemsItemDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(addOrderItemResponseItemsItemDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discountsApplied": zod.boolean(),
+  "netUnitPrice": zod.string().regex(addOrderItemResponseItemsItemNetUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "grossTotal": zod.string().regex(addOrderItemResponseItemsItemGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(addOrderItemResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Snapshot imutável do produto e preço no momento da inclusão.'))
+})
+
+
+export const UpdateOrderItemParams = zod.object({
+  "id": zod.uuid(),
+  "itemId": zod.uuid()
+})
+
+
+export const updateOrderItemBodyQuantityRegExp = new RegExp('^(?:0|[1-9][0-9]{0,13})(?:\\.[0-9]{1,4})?$');
+export const updateOrderItemBodySpecialUnitPriceOneRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{1,6}$');
+
+
+export const UpdateOrderItemBody = zod.object({
+  "version": zod.int().min(1),
+  "quantity": zod.string().regex(updateOrderItemBodyQuantityRegExp).optional().describe('Decimal exato positivo'),
+  "specialUnitPrice": zod.union([zod.string().regex(updateOrderItemBodySpecialUnitPriceOneRegExp).describe('Decimal exato, com 1 a 12 dígitos inteiros (zeros à esquerda permitidos) e de 1 a 6 casas decimais. Nunca enviar como JSON number; o servidor preserva a parte inteira e completa a fração para seis casas.'),zod.null()]).optional()
+})
+
+export const updateOrderItemResponseDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderItemResponseDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderItemResponseDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderItemResponseDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderItemResponseGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const updateOrderItemResponseNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const updateOrderItemResponseItemsItemQuantityRegExp = new RegExp('^[0-9]+\\.[0-9]{4}$');
+export const updateOrderItemResponseItemsItemSuggestedUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const updateOrderItemResponseItemsItemEffectiveUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const updateOrderItemResponseItemsItemSpecialUnitPriceOneRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const updateOrderItemResponseItemsItemDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderItemResponseItemsItemDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderItemResponseItemsItemDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderItemResponseItemsItemDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const updateOrderItemResponseItemsItemNetUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const updateOrderItemResponseItemsItemGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const updateOrderItemResponseItemsItemNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+
+
+export const UpdateOrderItemResponse = zod.object({
+  "id": zod.uuid(),
+  "internalNumber": zod.number(),
+  "representativeId": zod.uuid(),
+  "customerId": zod.uuid(),
+  "paymentTermId": zod.uuid(),
+  "carrierId": zod.uuid().nullable(),
+  "notes": zod.string().nullable(),
+  "discount1": zod.string().regex(updateOrderItemResponseDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(updateOrderItemResponseDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(updateOrderItemResponseDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(updateOrderItemResponseDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "grossTotal": zod.string().regex(updateOrderItemResponseGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(updateOrderItemResponseNetTotalRegExp).describe('Total decimal exato'),
+  "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
+  "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
+  "erpOrderNumber": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable(),
+  "erpSyncedAt": zod.coerce.date().nullable(),
+  "createdByUserId": zod.uuid(),
+  "version": zod.int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "customerName": zod.string(),
+  "customerErpCode": zod.string(),
+  "paymentTermDescription": zod.string(),
+  "paymentTermErpCode": zod.string(),
+  "carrierName": zod.string().nullable(),
+  "carrierErpCode": zod.string().nullable(),
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "orderId": zod.uuid(),
+  "productId": zod.uuid(),
+  "groupCode": zod.string(),
+  "typeCode": zod.string(),
+  "productCode": zod.string(),
+  "referenceCode": zod.string(),
+  "productCodeSnapshot": zod.string(),
+  "descriptionSnapshot": zod.string(),
+  "packagingSnapshot": zod.string().nullable(),
+  "widthSnapshot": zod.string().nullable(),
+  "colorSnapshot": zod.string().nullable(),
+  "quantity": zod.string().regex(updateOrderItemResponseItemsItemQuantityRegExp),
+  "suggestedUnitPrice": zod.string().regex(updateOrderItemResponseItemsItemSuggestedUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "suggestedPriceOrigin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD']),
+  "suggestedPriceTableId": zod.uuid().nullable(),
+  "suggestedPriceTableErpCode": zod.string().nullable(),
+  "effectiveUnitPrice": zod.string().regex(updateOrderItemResponseItemsItemEffectiveUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "effectivePriceOrigin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD', 'SPECIAL']),
+  "isSpecialPrice": zod.boolean(),
+  "specialUnitPrice": zod.union([zod.string().regex(updateOrderItemResponseItemsItemSpecialUnitPriceOneRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),zod.null()]),
+  "discount1": zod.string().regex(updateOrderItemResponseItemsItemDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(updateOrderItemResponseItemsItemDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(updateOrderItemResponseItemsItemDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(updateOrderItemResponseItemsItemDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discountsApplied": zod.boolean(),
+  "netUnitPrice": zod.string().regex(updateOrderItemResponseItemsItemNetUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "grossTotal": zod.string().regex(updateOrderItemResponseItemsItemGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(updateOrderItemResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Snapshot imutável do produto e preço no momento da inclusão.'))
+})
+
+
+export const DeleteOrderItemParams = zod.object({
+  "id": zod.uuid(),
+  "itemId": zod.uuid()
+})
+
+
+
+
+export const DeleteOrderItemBody = zod.object({
+  "version": zod.int().min(1)
+})
+
+export const deleteOrderItemResponseDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const deleteOrderItemResponseDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const deleteOrderItemResponseDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const deleteOrderItemResponseDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const deleteOrderItemResponseGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const deleteOrderItemResponseNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const deleteOrderItemResponseItemsItemQuantityRegExp = new RegExp('^[0-9]+\\.[0-9]{4}$');
+export const deleteOrderItemResponseItemsItemSuggestedUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const deleteOrderItemResponseItemsItemEffectiveUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const deleteOrderItemResponseItemsItemSpecialUnitPriceOneRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const deleteOrderItemResponseItemsItemDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const deleteOrderItemResponseItemsItemDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const deleteOrderItemResponseItemsItemDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const deleteOrderItemResponseItemsItemDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const deleteOrderItemResponseItemsItemNetUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const deleteOrderItemResponseItemsItemGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const deleteOrderItemResponseItemsItemNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+
+
+export const DeleteOrderItemResponse = zod.object({
+  "id": zod.uuid(),
+  "internalNumber": zod.number(),
+  "representativeId": zod.uuid(),
+  "customerId": zod.uuid(),
+  "paymentTermId": zod.uuid(),
+  "carrierId": zod.uuid().nullable(),
+  "notes": zod.string().nullable(),
+  "discount1": zod.string().regex(deleteOrderItemResponseDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(deleteOrderItemResponseDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(deleteOrderItemResponseDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(deleteOrderItemResponseDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "grossTotal": zod.string().regex(deleteOrderItemResponseGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(deleteOrderItemResponseNetTotalRegExp).describe('Total decimal exato'),
+  "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
+  "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
+  "erpOrderNumber": zod.string().nullable(),
+  "submittedAt": zod.coerce.date().nullable(),
+  "erpSyncedAt": zod.coerce.date().nullable(),
+  "createdByUserId": zod.uuid(),
+  "version": zod.int(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "customerName": zod.string(),
+  "customerErpCode": zod.string(),
+  "paymentTermDescription": zod.string(),
+  "paymentTermErpCode": zod.string(),
+  "carrierName": zod.string().nullable(),
+  "carrierErpCode": zod.string().nullable(),
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "orderId": zod.uuid(),
+  "productId": zod.uuid(),
+  "groupCode": zod.string(),
+  "typeCode": zod.string(),
+  "productCode": zod.string(),
+  "referenceCode": zod.string(),
+  "productCodeSnapshot": zod.string(),
+  "descriptionSnapshot": zod.string(),
+  "packagingSnapshot": zod.string().nullable(),
+  "widthSnapshot": zod.string().nullable(),
+  "colorSnapshot": zod.string().nullable(),
+  "quantity": zod.string().regex(deleteOrderItemResponseItemsItemQuantityRegExp),
+  "suggestedUnitPrice": zod.string().regex(deleteOrderItemResponseItemsItemSuggestedUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "suggestedPriceOrigin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD']),
+  "suggestedPriceTableId": zod.uuid().nullable(),
+  "suggestedPriceTableErpCode": zod.string().nullable(),
+  "effectiveUnitPrice": zod.string().regex(deleteOrderItemResponseItemsItemEffectiveUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "effectivePriceOrigin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD', 'SPECIAL']),
+  "isSpecialPrice": zod.boolean(),
+  "specialUnitPrice": zod.union([zod.string().regex(deleteOrderItemResponseItemsItemSpecialUnitPriceOneRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),zod.null()]),
+  "discount1": zod.string().regex(deleteOrderItemResponseItemsItemDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(deleteOrderItemResponseItemsItemDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(deleteOrderItemResponseItemsItemDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(deleteOrderItemResponseItemsItemDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discountsApplied": zod.boolean(),
+  "netUnitPrice": zod.string().regex(deleteOrderItemResponseItemsItemNetUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "grossTotal": zod.string().regex(deleteOrderItemResponseItemsItemGrossTotalRegExp).describe('Total decimal exato'),
+  "netTotal": zod.string().regex(deleteOrderItemResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).describe('Snapshot imutável do produto e preço no momento da inclusão.'))
+})
+
+
 export const syncRepresentativesBodyItemsItemOneActiveDefault = true;
 export const syncRepresentativesBodyItemsMax = 500;
 

@@ -15,6 +15,7 @@ tags:
   - name: catalog
   - name: erp
   - name: pricing
+  - name: orders
 paths:
   /healthz:
     get:
@@ -241,6 +242,64 @@ paths:
         "409":
           description: Duas ou mais tabelas vigentes contêm o produto no mesmo nível da hierarquia
           content: { application/json: { schema: { $ref: "#/components/schemas/AmbiguousPriceResponse" } } }
+  /v1/orders:
+    get:
+      operationId: listOrders
+      tags: [orders]
+      security: [{ sessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PageSize" }, { name: status, in: query, schema: { type: string, enum: [DRAFT, SUBMITTED] } }, { name: number, in: query, schema: { type: integer } }, { name: customer, in: query, schema: { type: string } }]
+      responses: { "200": { description: Pedidos paginados, content: { application/json: { schema: { $ref: "#/components/schemas/OrderPage" } } } }, "401": { description: Não autenticado } }
+    post:
+      operationId: createOrder
+      tags: [orders]
+      security: [{ sessionCookie: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/OrderInput" } } } }
+      responses: { "201": { description: Orçamento criado, content: { application/json: { schema: { $ref: "#/components/schemas/OrderDetail" } } } }, "400": { description: Dados inválidos }, "403": { description: Somente representante pode criar } }
+  /v1/orders/{id}:
+    get:
+      operationId: getOrder
+      tags: [orders]
+      security: [{ sessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrderId" }]
+      responses: { "200": { description: Pedido e itens congelados, content: { application/json: { schema: { $ref: "#/components/schemas/OrderDetail" } } } }, "404": { description: Não encontrado } }
+    patch:
+      operationId: updateOrder
+      tags: [orders]
+      security: [{ sessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrderId" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/OrderUpdate" } } } }
+      responses: { "200": { description: Pedido atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/OrderDetail" } } } }, "409": { description: Versão conflitante ou pedido submetido } }
+  /v1/orders/{id}/submit:
+    post:
+      operationId: submitOrder
+      tags: [orders]
+      security: [{ sessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrderId" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/VersionInput" } } } }
+      responses: { "200": { description: Pedido submetido, content: { application/json: { schema: { $ref: "#/components/schemas/OrderDetail" } } } }, "409": { description: Pedido não apto ou já submetido } }
+  /v1/orders/{id}/items:
+    post:
+      operationId: addOrderItem
+      tags: [orders]
+      security: [{ sessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrderId" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/OrderItemInput" } } } }
+      responses: { "201": { description: Item incluído e pedido recalculado, content: { application/json: { schema: { $ref: "#/components/schemas/OrderDetail" } } } }, "409": { description: "Preço ausente, versão ou pedido submetido" } }
+  /v1/orders/{id}/items/{itemId}:
+    patch:
+      operationId: updateOrderItem
+      tags: [orders]
+      security: [{ sessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrderId" }, { name: itemId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/OrderItemUpdate" } } } }
+      responses: { "200": { description: Item atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/OrderDetail" } } } }, "409": { description: "Versão ou pedido submetido" } }
+    delete:
+      operationId: deleteOrderItem
+      tags: [orders]
+      security: [{ sessionCookie: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrderId" }, { name: itemId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/VersionInput" } } } }
+      responses: { "200": { description: Item removido e pedido recalculado, content: { application/json: { schema: { $ref: "#/components/schemas/OrderDetail" } } } }, "409": { description: "Versão ou pedido submetido" } }
   /v1/erp/representatives/sync:
     post:
       operationId: syncRepresentatives
@@ -327,6 +386,7 @@ components:
     Search: { name: search, in: query, schema: { type: string, maxLength: 200 } }
     Active: { name: active, in: query, description: Disponível a administradores; representantes sempre veem ativos, schema: { type: boolean } }
     Order: { name: order, in: query, schema: { type: string, enum: [asc, desc], default: asc } }
+    OrderId: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
   responses:
     SyncResult:
       description: Resultado integral ou parcial do lote
@@ -338,6 +398,145 @@ components:
         status:
           type: string
       required: [status]
+    DecimalDiscount: { type: string, pattern: '^(?:0|[1-9][0-9]{0,2})(?:\.[0-9]{1,4})?$', description: Percentual decimal exato entre 0 e 100 com até quatro casas. }
+    QuantityInput: { type: string, pattern: '^(?:0|[1-9][0-9]{0,13})(?:\.[0-9]{1,4})?$', description: Decimal exato positivo, até quatro casas. }
+    MoneyTotal: { type: string, pattern: '^[0-9]{1,18}\.[0-9]{2}$', description: Total decimal exato, sempre duas casas. }
+    VersionInput: { type: object, additionalProperties: false, required: [version], properties: { version: { type: integer, minimum: 1 } } }
+    OrderInput:
+      type: object
+      additionalProperties: false
+      required: [customerId, paymentTermId, discount1, discount2, discount3, discount4]
+      properties: { customerId: { type: string, format: uuid }, paymentTermId: { type: string, format: uuid }, carrierId: { type: [string, "null"], format: uuid }, notes: { type: [string, "null"], maxLength: 5000 }, discount1: { $ref: "#/components/schemas/DecimalDiscount" }, discount2: { $ref: "#/components/schemas/DecimalDiscount" }, discount3: { $ref: "#/components/schemas/DecimalDiscount" }, discount4: { $ref: "#/components/schemas/DecimalDiscount" } }
+    OrderUpdate:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties: { version: { type: integer, minimum: 1 }, customerId: { type: string, format: uuid }, paymentTermId: { type: string, format: uuid }, carrierId: { type: [string, "null"], format: uuid }, notes: { type: [string, "null"], maxLength: 5000 }, discount1: { $ref: "#/components/schemas/DecimalDiscount" }, discount2: { $ref: "#/components/schemas/DecimalDiscount" }, discount3: { $ref: "#/components/schemas/DecimalDiscount" }, discount4: { $ref: "#/components/schemas/DecimalDiscount" } }
+    OrderItemInput:
+      type: object
+      additionalProperties: false
+      required: [version, productId, quantity]
+      properties: { version: { type: integer, minimum: 1 }, productId: { type: string, format: uuid }, quantity: { $ref: "#/components/schemas/QuantityInput" }, specialUnitPrice: { anyOf: [{ $ref: "#/components/schemas/UnitPriceInput" }, { type: "null" }] } }
+    OrderItemUpdate:
+      type: object
+      additionalProperties: false
+      required: [version]
+      properties: { version: { type: integer, minimum: 1 }, quantity: { $ref: "#/components/schemas/QuantityInput" }, specialUnitPrice: { anyOf: [{ $ref: "#/components/schemas/UnitPriceInput" }, { type: "null" }] } }
+    OrderItem:
+      type: object
+      additionalProperties: false
+      description: Snapshot imutável do produto e preço no momento da inclusão.
+      required: [id, orderId, productId, groupCode, typeCode, productCode, referenceCode, productCodeSnapshot, descriptionSnapshot, packagingSnapshot, widthSnapshot, colorSnapshot, quantity, suggestedUnitPrice, suggestedPriceOrigin, suggestedPriceTableId, suggestedPriceTableErpCode, effectiveUnitPrice, effectivePriceOrigin, isSpecialPrice, specialUnitPrice, discount1, discount2, discount3, discount4, discountsApplied, netUnitPrice, grossTotal, netTotal, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        productId: { type: string, format: uuid }
+        groupCode: { type: string }
+        typeCode: { type: string }
+        productCode: { type: string }
+        referenceCode: { type: string }
+        productCodeSnapshot: { type: string }
+        descriptionSnapshot: { type: string }
+        packagingSnapshot: { type: [string, "null"] }
+        widthSnapshot: { type: [string, "null"] }
+        colorSnapshot: { type: [string, "null"] }
+        quantity: { type: string, pattern: '^[0-9]+\.[0-9]{4}$' }
+        suggestedUnitPrice: { $ref: "#/components/schemas/UnitPriceOutput" }
+        suggestedPriceOrigin: { $ref: "#/components/schemas/PriceOrigin" }
+        suggestedPriceTableId: { type: [string, "null"], format: uuid }
+        suggestedPriceTableErpCode: { type: [string, "null"] }
+        effectiveUnitPrice: { $ref: "#/components/schemas/UnitPriceOutput" }
+        effectivePriceOrigin: { type: string, enum: [CUSTOMER, REPRESENTATIVE, STANDARD, SPECIAL] }
+        isSpecialPrice: { type: boolean }
+        specialUnitPrice: { anyOf: [{ $ref: "#/components/schemas/UnitPriceOutput" }, { type: "null" }] }
+        discount1: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount2: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount3: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount4: { $ref: "#/components/schemas/DecimalDiscount" }
+        discountsApplied: { type: boolean }
+        netUnitPrice: { $ref: "#/components/schemas/UnitPriceOutput" }
+        grossTotal: { $ref: "#/components/schemas/MoneyTotal" }
+        netTotal: { $ref: "#/components/schemas/MoneyTotal" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Order:
+      type: object
+      additionalProperties: false
+      description: Ordem persistida; identidade, estado, totais e snapshots são gerados exclusivamente pelo servidor.
+      required: [id, internalNumber, representativeId, customerId, paymentTermId, carrierId, notes, discount1, discount2, discount3, discount4, grossTotal, netTotal, internalStatus, erpStatus, erpOrderNumber, submittedAt, erpSyncedAt, createdByUserId, version, createdAt, updatedAt, customerName, customerErpCode, paymentTermDescription, paymentTermErpCode, carrierName, carrierErpCode]
+      properties:
+        id: { type: string, format: uuid }
+        internalNumber: { type: number }
+        representativeId: { type: string, format: uuid }
+        customerId: { type: string, format: uuid }
+        paymentTermId: { type: string, format: uuid }
+        carrierId: { type: [string, "null"], format: uuid }
+        notes: { type: [string, "null"] }
+        discount1: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount2: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount3: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount4: { $ref: "#/components/schemas/DecimalDiscount" }
+        grossTotal: { $ref: "#/components/schemas/MoneyTotal" }
+        netTotal: { $ref: "#/components/schemas/MoneyTotal" }
+        internalStatus: { type: string, enum: [DRAFT, SUBMITTED] }
+        erpStatus: { type: [string, "null"], enum: [EM_ANALISE, APROVADO, FECHADO, FATURADO, REPROVADO, null] }
+        erpOrderNumber: { type: [string, "null"] }
+        submittedAt: { type: [string, "null"], format: date-time }
+        erpSyncedAt: { type: [string, "null"], format: date-time }
+        createdByUserId: { type: string, format: uuid }
+        version: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        customerName: { type: string }
+        customerErpCode: { type: string }
+        paymentTermDescription: { type: string }
+        paymentTermErpCode: { type: string }
+        carrierName: { type: [string, "null"] }
+        carrierErpCode: { type: [string, "null"] }
+    OrderDetail:
+      type: object
+      additionalProperties: false
+      required: [id, internalNumber, representativeId, customerId, paymentTermId, carrierId, notes, discount1, discount2, discount3, discount4, grossTotal, netTotal, internalStatus, erpStatus, erpOrderNumber, submittedAt, erpSyncedAt, createdByUserId, version, createdAt, updatedAt, customerName, customerErpCode, paymentTermDescription, paymentTermErpCode, carrierName, carrierErpCode, items]
+      properties:
+        id: { type: string, format: uuid }
+        internalNumber: { type: number }
+        representativeId: { type: string, format: uuid }
+        customerId: { type: string, format: uuid }
+        paymentTermId: { type: string, format: uuid }
+        carrierId: { type: [string, "null"], format: uuid }
+        notes: { type: [string, "null"] }
+        discount1: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount2: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount3: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount4: { $ref: "#/components/schemas/DecimalDiscount" }
+        grossTotal: { $ref: "#/components/schemas/MoneyTotal" }
+        netTotal: { $ref: "#/components/schemas/MoneyTotal" }
+        internalStatus: { type: string, enum: [DRAFT, SUBMITTED] }
+        erpStatus: { type: [string, "null"], enum: [EM_ANALISE, APROVADO, FECHADO, FATURADO, REPROVADO, null] }
+        erpOrderNumber: { type: [string, "null"] }
+        submittedAt: { type: [string, "null"], format: date-time }
+        erpSyncedAt: { type: [string, "null"], format: date-time }
+        createdByUserId: { type: string, format: uuid }
+        version: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        customerName: { type: string }
+        customerErpCode: { type: string }
+        paymentTermDescription: { type: string }
+        paymentTermErpCode: { type: string }
+        carrierName: { type: [string, "null"] }
+        carrierErpCode: { type: [string, "null"] }
+        items: { type: array, items: { $ref: "#/components/schemas/OrderItem" } }
+    OrderPage:
+      type: object
+      additionalProperties: false
+      required: [page, pageSize, totalItems, totalPages, items]
+      properties:
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalItems: { type: integer }
+        totalPages: { type: integer }
+        items: { type: array, items: { $ref: "#/components/schemas/Order" } }
     LoginInput:
       type: object
       properties:

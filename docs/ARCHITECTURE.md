@@ -21,7 +21,8 @@ são atômicos no PostgreSQL; consultas paginadas aplicam filtros, contagem e of
 - `artifacts/api-server`: rotas, autorização e serviços.
 - `lib/api-spec`: contrato OpenAPI.
 - `lib/db`: schema e migrations.
-- `services`: regras comerciais de backend; na Fase 3 inclui a resolução centralizada de preço.
+- `services`: regras comerciais de backend; inclui a resolução centralizada de
+  preço e as transações de pedidos.
 
 Regras comerciais não devem ser implementadas em componentes React.
 
@@ -74,7 +75,28 @@ PostgreSQL. A entrada aceita zeros à esquerda e o servidor completa a fração
 para seis casas na resposta. Nenhuma etapa financeira os converte para `number`
 JavaScript. O banco também rejeita intervalos cuja data inicial seja posterior
 à final quando ambas existirem.
-Pedidos, descontos e preço especial não pertencem à Fase 3.
+## Orçamentos — Fase 4
+
+`DbOrderService` concentra criação, consulta, edição, itens e finalização. O
+representante é derivado da sessão com `getAuthenticatedRepresentative()`;
+campos controlados pelo servidor são rejeitados na borda HTTP. ADMIN possui
+consulta global e não executa mutações.
+
+Mutações de um `DRAFT` executam em transação, adquirem `FOR UPDATE` na linha do
+pedido e validam `version`. Assim, duas escritas com a mesma versão não podem
+ser aceitas. `SUBMITTED` é imutável. A numeração interna vem de sequence
+PostgreSQL, sem cálculo do tipo `MAX + 1`.
+
+Ao incluir um item, a API chama o `PricingService` e persiste snapshots do
+produto, preço sugerido, origem e tabela. O backend usa ponto fixo com `BigInt`
+para cascata de descontos e `ROUND_HALF_UP`; valores financeiros críticos não
+passam por `number`. Totais de pedidos são somas dos totais de itens já
+arredondados.
+
+A interface usa exclusivamente os hooks React Query gerados pelo OpenAPI.
+Listagens e seletores consultam o servidor com paginação/pesquisa; as mutações
+devolvem o detalhe completo e a versão atual para manter o cache sincronizado.
+Há apresentações próprias para desktop e mobile.
 
 ## Compatibilidade HTTP
 

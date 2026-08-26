@@ -9,6 +9,286 @@ export interface HealthStatus {
   status: string;
 }
 
+/**
+ * Percentual decimal exato entre 0 e 100 com até quatro casas.
+ * @pattern ^(?:0|[1-9][0-9]{0,2})(?:\.[0-9]{1,4})?$
+ */
+export type DecimalDiscount = string;
+
+/**
+ * Decimal exato positivo
+ * @pattern ^(?:0|[1-9][0-9]{0,13})(?:\.[0-9]{1,4})?$
+ */
+export type QuantityInput = string;
+
+/**
+ * Total decimal exato
+ * @pattern ^[0-9]{1,18}\.[0-9]{2}$
+ */
+export type MoneyTotal = string;
+
+export interface VersionInput {
+  /** @minimum 1 */
+  version: number;
+}
+
+export interface OrderInput {
+  customerId: string;
+  paymentTermId: string;
+  /** @nullable */
+  carrierId?: string | null;
+  /**
+     * @maxLength 5000
+     * @nullable
+     */
+  notes?: string | null;
+  discount1: DecimalDiscount;
+  discount2: DecimalDiscount;
+  discount3: DecimalDiscount;
+  discount4: DecimalDiscount;
+}
+
+export interface OrderUpdate {
+  /** @minimum 1 */
+  version: number;
+  customerId?: string;
+  paymentTermId?: string;
+  /** @nullable */
+  carrierId?: string | null;
+  /**
+     * @maxLength 5000
+     * @nullable
+     */
+  notes?: string | null;
+  discount1?: DecimalDiscount;
+  discount2?: DecimalDiscount;
+  discount3?: DecimalDiscount;
+  discount4?: DecimalDiscount;
+}
+
+/**
+ * Decimal exato, com 1 a 12 dígitos inteiros (zeros à esquerda permitidos) e de 1 a 6 casas decimais. Nunca enviar como JSON number; o servidor preserva a parte inteira e completa a fração para seis casas.
+ * @pattern ^[0-9]{1,12}\.[0-9]{1,6}$
+ */
+export type UnitPriceInput = string;
+
+export interface OrderItemInput {
+  /** @minimum 1 */
+  version: number;
+  productId: string;
+  quantity: QuantityInput;
+  specialUnitPrice?: UnitPriceInput | null;
+}
+
+export interface OrderItemUpdate {
+  /** @minimum 1 */
+  version: number;
+  quantity?: QuantityInput;
+  specialUnitPrice?: UnitPriceInput | null;
+}
+
+export type OrderItemEffectivePriceOrigin = typeof OrderItemEffectivePriceOrigin[keyof typeof OrderItemEffectivePriceOrigin];
+
+
+export const OrderItemEffectivePriceOrigin = {
+  CUSTOMER: 'CUSTOMER',
+  REPRESENTATIVE: 'REPRESENTATIVE',
+  STANDARD: 'STANDARD',
+  SPECIAL: 'SPECIAL',
+} as const;
+
+/**
+ * Decimal exato normalizado com exatamente 6 casas decimais.
+ * @pattern ^[0-9]{1,12}\.[0-9]{6}$
+ */
+export type UnitPriceOutput = string;
+
+export type PriceOrigin = typeof PriceOrigin[keyof typeof PriceOrigin];
+
+
+export const PriceOrigin = {
+  CUSTOMER: 'CUSTOMER',
+  REPRESENTATIVE: 'REPRESENTATIVE',
+  STANDARD: 'STANDARD',
+} as const;
+
+/**
+ * Snapshot imutável do produto e preço no momento da inclusão.
+ */
+export interface OrderItem {
+  id: string;
+  orderId: string;
+  productId: string;
+  groupCode: string;
+  typeCode: string;
+  productCode: string;
+  referenceCode: string;
+  productCodeSnapshot: string;
+  descriptionSnapshot: string;
+  /** @nullable */
+  packagingSnapshot: string | null;
+  /** @nullable */
+  widthSnapshot: string | null;
+  /** @nullable */
+  colorSnapshot: string | null;
+  /** @pattern ^[0-9]+\.[0-9]{4}$ */
+  quantity: string;
+  suggestedUnitPrice: UnitPriceOutput;
+  suggestedPriceOrigin: PriceOrigin;
+  /** @nullable */
+  suggestedPriceTableId: string | null;
+  /** @nullable */
+  suggestedPriceTableErpCode: string | null;
+  effectiveUnitPrice: UnitPriceOutput;
+  effectivePriceOrigin: OrderItemEffectivePriceOrigin;
+  isSpecialPrice: boolean;
+  specialUnitPrice: UnitPriceOutput | null;
+  discount1: DecimalDiscount;
+  discount2: DecimalDiscount;
+  discount3: DecimalDiscount;
+  discount4: DecimalDiscount;
+  discountsApplied: boolean;
+  netUnitPrice: UnitPriceOutput;
+  grossTotal: MoneyTotal;
+  netTotal: MoneyTotal;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type OrderInternalStatus = typeof OrderInternalStatus[keyof typeof OrderInternalStatus];
+
+
+export const OrderInternalStatus = {
+  DRAFT: 'DRAFT',
+  SUBMITTED: 'SUBMITTED',
+} as const;
+
+/**
+ * @nullable
+ */
+export type OrderErpStatus = typeof OrderErpStatus[keyof typeof OrderErpStatus] | null;
+
+
+export const OrderErpStatus = {
+  EM_ANALISE: 'EM_ANALISE',
+  APROVADO: 'APROVADO',
+  FECHADO: 'FECHADO',
+  FATURADO: 'FATURADO',
+  REPROVADO: 'REPROVADO',
+} as const;
+
+/**
+ * Ordem persistida; identidade, estado, totais e snapshots são gerados exclusivamente pelo servidor.
+ */
+export interface Order {
+  id: string;
+  internalNumber: number;
+  representativeId: string;
+  customerId: string;
+  paymentTermId: string;
+  /** @nullable */
+  carrierId: string | null;
+  /** @nullable */
+  notes: string | null;
+  discount1: DecimalDiscount;
+  discount2: DecimalDiscount;
+  discount3: DecimalDiscount;
+  discount4: DecimalDiscount;
+  grossTotal: MoneyTotal;
+  netTotal: MoneyTotal;
+  internalStatus: OrderInternalStatus;
+  /** @nullable */
+  erpStatus: OrderErpStatus;
+  /** @nullable */
+  erpOrderNumber: string | null;
+  /** @nullable */
+  submittedAt: string | null;
+  /** @nullable */
+  erpSyncedAt: string | null;
+  createdByUserId: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  customerName: string;
+  customerErpCode: string;
+  paymentTermDescription: string;
+  paymentTermErpCode: string;
+  /** @nullable */
+  carrierName: string | null;
+  /** @nullable */
+  carrierErpCode: string | null;
+}
+
+export type OrderDetailInternalStatus = typeof OrderDetailInternalStatus[keyof typeof OrderDetailInternalStatus];
+
+
+export const OrderDetailInternalStatus = {
+  DRAFT: 'DRAFT',
+  SUBMITTED: 'SUBMITTED',
+} as const;
+
+/**
+ * @nullable
+ */
+export type OrderDetailErpStatus = typeof OrderDetailErpStatus[keyof typeof OrderDetailErpStatus] | null;
+
+
+export const OrderDetailErpStatus = {
+  EM_ANALISE: 'EM_ANALISE',
+  APROVADO: 'APROVADO',
+  FECHADO: 'FECHADO',
+  FATURADO: 'FATURADO',
+  REPROVADO: 'REPROVADO',
+} as const;
+
+export interface OrderDetail {
+  id: string;
+  internalNumber: number;
+  representativeId: string;
+  customerId: string;
+  paymentTermId: string;
+  /** @nullable */
+  carrierId: string | null;
+  /** @nullable */
+  notes: string | null;
+  discount1: DecimalDiscount;
+  discount2: DecimalDiscount;
+  discount3: DecimalDiscount;
+  discount4: DecimalDiscount;
+  grossTotal: MoneyTotal;
+  netTotal: MoneyTotal;
+  internalStatus: OrderDetailInternalStatus;
+  /** @nullable */
+  erpStatus: OrderDetailErpStatus;
+  /** @nullable */
+  erpOrderNumber: string | null;
+  /** @nullable */
+  submittedAt: string | null;
+  /** @nullable */
+  erpSyncedAt: string | null;
+  createdByUserId: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  customerName: string;
+  customerErpCode: string;
+  paymentTermDescription: string;
+  paymentTermErpCode: string;
+  /** @nullable */
+  carrierName: string | null;
+  /** @nullable */
+  carrierErpCode: string | null;
+  items: OrderItem[];
+}
+
+export interface OrderPage {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  items: Order[];
+}
+
 export interface LoginInput {
   email: string;
   /** @minLength 8 */
@@ -57,27 +337,6 @@ export const PriceType = {
   REPRESENTATIVE: 'REPRESENTATIVE',
   CUSTOMER: 'CUSTOMER',
 } as const;
-
-export type PriceOrigin = typeof PriceOrigin[keyof typeof PriceOrigin];
-
-
-export const PriceOrigin = {
-  CUSTOMER: 'CUSTOMER',
-  REPRESENTATIVE: 'REPRESENTATIVE',
-  STANDARD: 'STANDARD',
-} as const;
-
-/**
- * Decimal exato, com 1 a 12 dígitos inteiros (zeros à esquerda permitidos) e de 1 a 6 casas decimais. Nunca enviar como JSON number; o servidor preserva a parte inteira e completa a fração para seis casas.
- * @pattern ^[0-9]{1,12}\.[0-9]{1,6}$
- */
-export type UnitPriceInput = string;
-
-/**
- * Decimal exato normalizado com exatamente 6 casas decimais.
- * @pattern ^[0-9]{1,12}\.[0-9]{6}$
- */
-export type UnitPriceOutput = string;
 
 export interface PriceResolutionFound {
   found: true;
@@ -597,4 +856,27 @@ productId: string;
  */
 referenceDate?: string;
 };
+
+export type ListOrdersParams = {
+/**
+ * @minimum 1
+ */
+page?: PageParameter;
+/**
+ * Tamanho efetivo padrão é 20; valores acima de 100 são limitados a 100. Quando informado, tem prioridade sobre limit.
+ * @minimum 1
+ */
+pageSize?: PageSizeParameter;
+status?: ListOrdersStatus;
+number?: number;
+customer?: string;
+};
+
+export type ListOrdersStatus = typeof ListOrdersStatus[keyof typeof ListOrdersStatus];
+
+
+export const ListOrdersStatus = {
+  DRAFT: 'DRAFT',
+  SUBMITTED: 'SUBMITTED',
+} as const;
 

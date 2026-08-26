@@ -1,3 +1,4 @@
 - [Better Auth hardening](better-auth-hardening.md) — credential issuers, legacy-route origin checks, and migration-history constraints that must remain intact.
 - [Orval query date coercion](orval-query-date-coercion.md) — keep date enabled for query coercion so generated Zod accepts documented ISO URL strings.
 - [Arredondamento financeiro](financial-rounding.md) — itens arredondam a 2 casas; pedidos somam os totais de itens já arredondados.
+- [OpenAPI fechado e composição](openapi-closed-composition.md) — não combine objetos `allOf` que individualmente proíbem propriedades adicionais.

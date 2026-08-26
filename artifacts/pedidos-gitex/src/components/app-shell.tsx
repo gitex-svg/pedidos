@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useQueryClient } from '@tanstack/react-query';
-import { BarChart3, LogOut, Menu, PanelLeftClose, X, Users, Package } from 'lucide-react';
+import { BarChart3, LogOut, Menu, PanelLeftClose, X, Users, Package, FileText } from 'lucide-react';
 import { getGetCurrentUserQueryKey, getGetDashboardSummaryQueryKey, useLogout } from '@workspace/api-client-react';
 import type { AuthUser } from '@workspace/api-client-react';
 import { GitexMark } from '@/components/gitex-mark';
@@ -75,6 +75,20 @@ export function AppShell({ user, children }: AppShellProps) {
             <BarChart3 className={`h-[18px] w-[18px] ${location === '/dashboard' ? 'text-sidebar-primary' : 'text-sidebar-foreground/50'}`} />
             <span>Visão geral</span>
             {location === '/dashboard' && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}
+          </Link>
+          <Link
+            href="/orders"
+            data-testid="link-orders"
+            className={`group flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-semibold transition-colors ${
+              location.startsWith('/orders')
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+            }`}
+            onClick={() => setMobileOpen(false)}
+          >
+            <FileText className={`h-[18px] w-[18px] ${location.startsWith('/orders') ? 'text-sidebar-primary' : 'text-sidebar-foreground/50'}`} />
+            <span>Orçamentos</span>
+            {location.startsWith('/orders') && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-sidebar-primary" />}
           </Link>
           <Link
             href="/customers"

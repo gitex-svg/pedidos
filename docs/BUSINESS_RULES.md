@@ -1,3 +1,20 @@
+# Fase 4 — orçamentos
+
+Um pedido começa em `DRAFT`; somente seu representante pode alterá-lo e um
+pedido `SUBMITTED` é imutável. Administradores têm acesso somente de leitura. A
+propriedade é derivada do representante autenticado, nunca dos dados da
+requisição.
+
+Os descontos D1–D4 são aplicados em cascata: `preço × (1-D1/100) × ... ×
+(1-D4/100)`. A aritmética usa ponto fixo exato com `BigInt` e `ROUND_HALF_UP`
+explícito. Preços unitários mantêm seis casas; cada total de item é arredondado
+para duas casas, e os totais do pedido somam esses itens já arredondados. Um
+preço especial é positivo, torna-se o preço efetivo/líquido e não recebe
+descontos; os descontos da capa permanecem copiados para auditoria.
+
+Os atributos de identidade/descrição do produto e o resultado do
+`PricingService` são congelados quando o item é criado. Alterações futuras no
+ERP, catálogo ou preço não reescrevem os itens existentes.
 ## Sincronização e paginação
 
 - O ERP é a fonte dos cadastros e versões anteriores ou iguais são ignoradas.

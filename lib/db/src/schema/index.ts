@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  bigint,
   check,
   integer,
   jsonb,
@@ -267,6 +268,85 @@ export const carriers = pgTable("carriers", {
   index("carriers_tax_id_idx").on(table.taxId),
 ]);
 
+/**
+ * `internal_number` is allocated by orders_internal_number_seq in PostgreSQL.
+ * A sequence is deliberately allowed to have gaps: it is concurrency-safe and
+ * never derives a number from MAX(internal_number).
+ */
+export const orders = pgTable("orders", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  internalNumber: bigint("internal_number", { mode: "number" })
+    .notNull().default(sql`nextval('orders_internal_number_seq')`),
+  representativeId: uuid("representative_id").notNull().references(() => representatives.id),
+  customerId: uuid("customer_id").notNull().references(() => customers.id),
+  paymentTermId: uuid("payment_term_id").notNull().references(() => paymentTerms.id),
+  carrierId: uuid("carrier_id").references(() => carriers.id),
+  notes: text("notes"),
+  discount1: numeric("discount1", { precision: 7, scale: 4, mode: "string" }).notNull().default("0"),
+  discount2: numeric("discount2", { precision: 7, scale: 4, mode: "string" }).notNull().default("0"),
+  discount3: numeric("discount3", { precision: 7, scale: 4, mode: "string" }).notNull().default("0"),
+  discount4: numeric("discount4", { precision: 7, scale: 4, mode: "string" }).notNull().default("0"),
+  grossTotal: numeric("gross_total", { precision: 20, scale: 2, mode: "string" }).notNull().default("0"),
+  netTotal: numeric("net_total", { precision: 20, scale: 2, mode: "string" }).notNull().default("0"),
+  internalStatus: internalOrderStatusEnum("internal_status").notNull().default("DRAFT"),
+  erpStatus: erpStatusEnum("erp_status"),
+  erpOrderNumber: varchar("erp_order_number", { length: 128 }),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  erpSyncedAt: timestamp("erp_synced_at", { withTimezone: true }),
+  createdByUserId: uuid("created_by_user_id").notNull().references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("orders_internal_number_unique").on(table.internalNumber),
+  index("orders_representative_created_idx").on(table.representativeId, table.createdAt),
+  index("orders_customer_created_idx").on(table.customerId, table.createdAt),
+  index("orders_internal_status_created_idx").on(table.internalStatus, table.createdAt),
+  check("orders_discount_range_check", sql`${table.discount1} between 0 and 100 and ${table.discount2} between 0 and 100 and ${table.discount3} between 0 and 100 and ${table.discount4} between 0 and 100`),
+]);
+
+export const orderItems = pgTable("order_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orderId: uuid("order_id").notNull().references(() => orders.id, { onDelete: "no action", onUpdate: "no action" }),
+  productId: uuid("product_id").notNull().references(() => products.id),
+  groupCode: varchar("group_code", { length: 2 }).notNull(),
+  typeCode: varchar("type_code", { length: 2 }).notNull(),
+  productCode: varchar("product_code", { length: 4 }).notNull(),
+  referenceCode: varchar("reference_code", { length: 8 }).notNull(),
+  productCodeSnapshot: varchar("product_code_snapshot", { length: 64 }).notNull(),
+  descriptionSnapshot: text("description_snapshot").notNull(),
+  packagingSnapshot: varchar("packaging_snapshot", { length: 120 }),
+  widthSnapshot: varchar("width_snapshot", { length: 64 }),
+  colorSnapshot: varchar("color_snapshot", { length: 120 }),
+  quantity: numeric("quantity", { precision: 18, scale: 4, mode: "string" }).notNull(),
+  suggestedUnitPrice: numeric("suggested_unit_price", { precision: 18, scale: 6, mode: "string" }).notNull(),
+  suggestedPriceOrigin: priceOriginEnum("suggested_price_origin").notNull(),
+  suggestedPriceTableId: uuid("suggested_price_table_id").references(() => priceTables.id, {
+    onDelete: "no action", onUpdate: "no action",
+  }),
+  suggestedPriceTableErpCode: varchar("suggested_price_table_erp_code", { length: 64 }),
+  effectiveUnitPrice: numeric("effective_unit_price", { precision: 18, scale: 6, mode: "string" }).notNull(),
+  effectivePriceOrigin: priceOriginEnum("effective_price_origin").notNull(),
+  isSpecialPrice: boolean("is_special_price").notNull().default(false),
+  specialUnitPrice: numeric("special_unit_price", { precision: 18, scale: 6, mode: "string" }),
+  discount1: numeric("discount1", { precision: 7, scale: 4, mode: "string" }).notNull(),
+  discount2: numeric("discount2", { precision: 7, scale: 4, mode: "string" }).notNull(),
+  discount3: numeric("discount3", { precision: 7, scale: 4, mode: "string" }).notNull(),
+  discount4: numeric("discount4", { precision: 7, scale: 4, mode: "string" }).notNull(),
+  discountsApplied: boolean("discounts_applied").notNull(),
+  netUnitPrice: numeric("net_unit_price", { precision: 18, scale: 6, mode: "string" }).notNull(),
+  grossTotal: numeric("gross_total", { precision: 20, scale: 2, mode: "string" }).notNull(),
+  netTotal: numeric("net_total", { precision: 20, scale: 2, mode: "string" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index("order_items_order_idx").on(table.orderId),
+  index("order_items_product_idx").on(table.productId),
+  check("order_items_quantity_positive_check", sql`${table.quantity} > 0`),
+  check("order_items_special_check", sql`(${table.isSpecialPrice} = false and ${table.specialUnitPrice} is null) or (${table.isSpecialPrice} = true and ${table.specialUnitPrice} > 0)`),
+  check("order_items_discount_range_check", sql`${table.discount1} between 0 and 100 and ${table.discount2} between 0 and 100 and ${table.discount3} between 0 and 100 and ${table.discount4} between 0 and 100`),
+]);
+
 export const integrationLogs = pgTable("integration_logs", {
   id: uuid("id").defaultRandom().primaryKey(),
   correlationId: uuid("correlation_id").notNull(),
@@ -299,6 +379,8 @@ export const insertPaymentTermSchema = createInsertSchema(paymentTerms);
 export const insertCarrierSchema = createInsertSchema(carriers);
 export const insertPriceTableSchema = createInsertSchema(priceTables);
 export const insertPriceTableItemSchema = createInsertSchema(priceTableItems);
+export const insertOrderSchema = createInsertSchema(orders);
+export const insertOrderItemSchema = createInsertSchema(orderItems);
 
 export type User = typeof user.$inferSelect;
 export type Session = typeof session.$inferSelect;
@@ -307,6 +389,8 @@ export type Customer = typeof customers.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type PriceTable = typeof priceTables.$inferSelect;
 export type PriceTableItem = typeof priceTableItems.$inferSelect;
+export type Order = typeof orders.$inferSelect;
+export type OrderItem = typeof orderItems.$inferSelect;
 export type InsertUser = typeof user.$inferInsert;
 export type InsertSession = typeof session.$inferInsert;
 export type InsertRepresentative = typeof representatives.$inferInsert;
