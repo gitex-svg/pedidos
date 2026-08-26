@@ -1,0 +1,752 @@
+# FASE 3 — MOTOR DE PREÇOS
+
+A Fase 2 está concluída e aprovada.
+
+Agora implemente exclusivamente o mecanismo de tabelas de preço e resolução de preço.
+
+NÃO implementar ainda:
+
+* criação de pedidos;
+* itens de pedido;
+* descontos;
+* preço especial;
+* tela de digitação de orçamento;
+* envio de pedidos ao ERP.
+
+O objetivo desta fase é deixar o motor de preços completo, testado e pronto para ser utilizado futuramente pelos itens do pedido.
+
+---
+
+# 1. REGRA PRINCIPAL
+
+A resolução de preço deve seguir obrigatoriamente esta ordem:
+
+1. CLIENTE
+2. REPRESENTANTE
+3. PADRÃO
+
+Ou seja:
+
+CLIENTE → REPRESENTANTE → PADRÃO
+
+Quando um produto for consultado para determinado cliente:
+
+## Passo 1
+
+Verificar se existe preço válido para:
+
+cliente + produto
+
+Se existir:
+
+retornar preço do cliente.
+
+Origem:
+
+`CUSTOMER`
+
+## Passo 2
+
+Se não existir preço do cliente:
+
+verificar preço para:
+
+representante + produto
+
+Se existir:
+
+retornar preço do representante.
+
+Origem:
+
+`REPRESENTATIVE`
+
+## Passo 3
+
+Se não existir nos níveis anteriores:
+
+verificar preço padrão do produto.
+
+Se existir:
+
+retornar preço padrão.
+
+Origem:
+
+`STANDARD`
+
+Se não existir preço em nenhuma tabela:
+
+retornar resultado explícito de preço não encontrado.
+
+Não retornar zero silenciosamente.
+
+---
+
+# 2. TABELAS
+
+Criar:
+
+`price_tables`
+
+Campos mínimos:
+
+* id UUID
+* name
+* erp_code
+* price_type
+* representative_id
+* customer_id
+* active
+* valid_from
+* valid_until
+* source_updated_at
+* last_synced_at
+* created_at
+* updated_at
+
+Enum:
+
+`price_type`
+
+Valores:
+
+* STANDARD
+* REPRESENTATIVE
+* CUSTOMER
+
+---
+
+# 3. REGRAS DE ESCOPO
+
+Aplicar constraints de integridade.
+
+## STANDARD
+
+Quando:
+
+`price_type = STANDARD`
+
+deve possuir:
+
+* representative_id = NULL
+* customer_id = NULL
+
+## REPRESENTATIVE
+
+Quando:
+
+`price_type = REPRESENTATIVE`
+
+deve possuir:
+
+* representative_id preenchido
+* customer_id = NULL
+
+## CUSTOMER
+
+Quando:
+
+`price_type = CUSTOMER`
+
+deve possuir:
+
+* customer_id preenchido
+
+O representante pode ser obtido através do cliente.
+
+Evitar redundância desnecessária.
+
+Criar constraints PostgreSQL quando tecnicamente adequado.
+
+---
+
+# 4. ITENS DA TABELA
+
+Criar:
+
+`price_table_items`
+
+Campos mínimos:
+
+* id UUID
+* price_table_id
+* product_id
+* unit_price
+* source_updated_at
+* last_synced_at
+* created_at
+* updated_at
+
+Criar UNIQUE:
+
+(price_table_id, product_id)
+
+Um mesmo produto não pode aparecer duas vezes dentro da mesma tabela.
+
+---
+
+# 5. PRECISÃO FINANCEIRA
+
+Utilizar:
+
+`unit_price NUMERIC(18,6)`
+
+Não utilizar float/double.
+
+Não realizar aritmética financeira crítica utilizando diretamente `number` de JavaScript.
+
+Utilizar biblioteca decimal apropriada, se necessário.
+
+Documentar a estratégia utilizada.
+
+---
+
+# 6. VIGÊNCIA
+
+Uma tabela só pode ser utilizada se:
+
+`active = true`
+
+e:
+
+`valid_from` for NULL ou menor/igual à data de referência
+
+e:
+
+`valid_until` for NULL ou maior/igual à data de referência.
+
+Criar uma regra centralizada.
+
+A consulta de preço deverá aceitar uma data de referência.
+
+Se nenhuma data for informada internamente:
+
+usar a data/hora atual do servidor.
+
+Preparar o serviço para futuramente permitir preço histórico.
+
+---
+
+# 7. MÚLTIPLAS TABELAS
+
+O sistema deve evitar ambiguidade.
+
+Se houver mais de uma tabela ativa e válida no mesmo escopo:
+
+exemplo:
+
+duas tabelas CUSTOMER válidas para o mesmo cliente
+
+não escolher arbitrariamente.
+
+Definir política explícita.
+
+Preferência:
+
+impedir esse estado através de regras/constraints quando possível.
+
+Se não for possível garantir completamente pelo banco devido às datas de vigência:
+
+o `PricingService` deverá detectar ambiguidade e retornar erro técnico explícito.
+
+Não escolher silenciosamente a primeira tabela.
+
+---
+
+# 8. PRICING SERVICE
+
+Implementar de fato o:
+
+`PricingService`
+
+Criar um método conceitualmente equivalente a:
+
+`resolvePrice()`
+
+Entrada:
+
+* customerId
+* productId
+* referenceDate opcional
+
+O representante NÃO deve ser informado livremente pelo frontend.
+
+O serviço deverá obter:
+
+customer.representative_id
+
+e utilizá-lo para o fallback de preço do representante.
+
+Fluxo:
+
+customer
+↓
+customer.representative_id
+↓
+CUSTOMER price
+↓ se não houver
+REPRESENTATIVE price
+↓ se não houver
+STANDARD price
+
+---
+
+# 9. RESULTADO
+
+O serviço deve retornar estrutura clara.
+
+Exemplo conceitual:
+
+```json
+{
+  "found": true,
+  "productId": "uuid",
+  "customerId": "uuid",
+  "representativeId": "uuid",
+  "unitPrice": "3.250000",
+  "origin": "CUSTOMER",
+  "priceTableId": "uuid",
+  "priceTableErpCode": "TAB001"
+}
+```
+
+Quando não encontrar:
+
+```json
+{
+  "found": false,
+  "productId": "uuid",
+  "customerId": "uuid"
+}
+```
+
+Não utilizar:
+
+`unitPrice = 0`
+
+para indicar ausência de preço.
+
+---
+
+# 10. ORIGEM DO PREÇO
+
+Utilizar enum:
+
+`price_origin`
+
+Valores nesta fase:
+
+* CUSTOMER
+* REPRESENTATIVE
+* STANDARD
+
+Não incluir SPECIAL na resolução inicial da tabela.
+
+Preço especial será tratado futuramente na camada de pedido.
+
+---
+
+# 11. CLIENTE E REPRESENTANTE
+
+Antes de resolver preço:
+
+validar que o cliente existe e está ativo.
+
+Validar que o representante associado existe e está ativo.
+
+Para usuário REPRESENTATIVE:
+
+o cliente consultado deve pertencer ao representante autenticado.
+
+Para ADMIN:
+
+permitir consulta global.
+
+Nunca aceitar `representative_id` do frontend para definir a hierarquia.
+
+---
+
+# 12. API WEB
+
+Criar endpoint autenticado para testar/resolver preço.
+
+Sugestão:
+
+GET `/api/v1/pricing/resolve`
+
+Parâmetros:
+
+* customerId
+* productId
+
+Opcional:
+
+* referenceDate
+
+REPRESENTATIVE:
+
+só pode consultar preço para cliente próprio.
+
+ADMIN:
+
+pode consultar qualquer cliente.
+
+Resposta deve utilizar o contrato do PricingService.
+
+Esse endpoint será futuramente utilizado pela tela de pedido.
+
+---
+
+# 13. SINCRONIZAÇÃO ERP
+
+Criar endpoints:
+
+POST `/api/v1/erp/price-tables/sync`
+
+POST `/api/v1/erp/price-table-items/sync`
+
+ou outra estrutura equivalente tecnicamente melhor.
+
+Manter os padrões da Fase 2:
+
+* API Key;
+* lote;
+* limite de 500;
+* correlation_id;
+* UPSERT;
+* source_updated_at;
+* last_synced_at;
+* STALE_SOURCE_VERSION;
+* results por item;
+* processing parcial;
+* logs.
+
+---
+
+# 14. IDENTIFICAÇÃO EXTERNA
+
+O ERP não deverá precisar conhecer UUID interno.
+
+Para sincronizar tabelas:
+
+utilizar:
+
+`erp_code`
+
+Para sincronizar tabela de representante:
+
+ERP deverá enviar:
+
+`representative_erp_code`
+
+Para tabela de cliente:
+
+ERP deverá enviar:
+
+`customer_erp_code`
+
+Para itens:
+
+utilizar:
+
+* price_table_erp_code
+* identificação externa do produto
+
+Preferencialmente usar o identificador ERP já adotado na Fase 2.
+
+Nunca exigir UUID interno do PostgreSQL no contrato ERP.
+
+---
+
+# 15. PRODUTOS NOS ITENS DE PREÇO
+
+Definir claramente como o ERP identifica produto.
+
+Preferencialmente utilizar:
+
+`erp_id`
+
+ou o identificador externo adotado como canônico na Fase 2.
+
+Se necessário, também permitir identificação através de:
+
+* group_code
+* type_code
+* product_code
+* reference_code
+
+Não criar duplicidade de produto.
+
+Resolver o UUID internamente.
+
+---
+
+# 16. INATIVAÇÃO
+
+Tabelas de preço não devem ser apagadas fisicamente.
+
+ERP poderá enviar:
+
+`active = false`
+
+Itens também devem preservar histórico.
+
+Evitar exclusões físicas que possam futuramente comprometer auditoria.
+
+---
+
+# 17. INDEXAÇÃO
+
+Criar índices adequados para as consultas do PricingService.
+
+Avaliar pelo menos:
+
+price_tables:
+
+* price_type
+* representative_id
+* customer_id
+* active
+* valid_from
+* valid_until
+
+price_table_items:
+
+* price_table_id
+* product_id
+
+Evitar excesso de índices.
+
+---
+
+# 18. PERFORMANCE
+
+A resolução de preço será executada com grande frequência durante a digitação de pedidos.
+
+Evitar:
+
+* N+1;
+* múltiplas consultas desnecessárias;
+* carregamento completo de tabelas.
+
+Tentar resolver a hierarquia de forma eficiente no PostgreSQL.
+
+Entretanto, priorizar clareza e consistência antes de micro-otimização.
+
+---
+
+# 19. TESTES OBRIGATÓRIOS
+
+Criar testes para:
+
+## CLIENTE
+
+1. preço de cliente existe → CUSTOMER;
+2. cliente vence representante e padrão;
+3. tabela de cliente inativa é ignorada;
+4. tabela fora da vigência é ignorada.
+
+## REPRESENTANTE
+
+5. sem preço cliente, usar REPRESENTATIVE;
+6. representante vence STANDARD;
+7. tabela de representante inativa é ignorada;
+8. tabela fora da vigência é ignorada.
+
+## PADRÃO
+
+9. sem cliente e representante → STANDARD;
+10. tabela padrão inativa é ignorada;
+11. tabela padrão fora da vigência é ignorada.
+
+## AUSÊNCIA
+
+12. nenhum preço encontrado → found=false;
+13. nunca retornar zero como ausência.
+
+## VIGÊNCIA
+
+14. valid_from futuro não é utilizado;
+15. valid_until passado não é utilizado;
+16. data exatamente no início da vigência é válida;
+17. data exatamente no final da vigência é válida.
+
+## AMBIGUIDADE
+
+18. múltiplas tabelas aplicáveis no mesmo nível devem gerar comportamento explícito;
+19. não escolher tabela arbitrariamente.
+
+## SEGURANÇA
+
+20. representante não resolve preço de cliente de outro representante;
+21. ADMIN consegue consultar.
+
+## SINCRONIZAÇÃO ERP
+
+22. criação de tabela;
+23. atualização;
+24. repetição idempotente;
+25. versão antiga ignorada;
+26. item inválido não cancela lote;
+27. correlation_id preservado;
+28. produto inexistente tratado corretamente;
+29. representante ERP inexistente tratado corretamente;
+30. cliente ERP inexistente tratado corretamente.
+
+## PRECISÃO
+
+31. preço com 6 casas decimais é preservado;
+32. não há perda de precisão durante leitura/gravação.
+
+---
+
+# 20. INTERFACE
+
+Nesta fase NÃO criar tela administrativa completa de tabelas de preço.
+
+Adicionar apenas, se útil para validação, uma ferramenta simples restrita a ADMIN para consultar a resolução de preço.
+
+Isso é opcional.
+
+Não permitir manutenção manual das tabelas de preço nesta fase.
+
+ERP continua sendo a fonte.
+
+---
+
+# 21. OPENAPI
+
+Atualizar:
+
+`lib/api-spec/openapi.yaml`
+
+Documentar:
+
+* sincronização;
+* contratos;
+* enums;
+* resolve;
+* erros;
+* autenticação.
+
+Regenerar cliente React.
+
+---
+
+# 22. DOCUMENTAÇÃO
+
+Atualizar:
+
+* README.md
+* docs/ARCHITECTURE.md
+* docs/DATABASE.md
+* docs/BUSINESS_RULES.md
+* docs/ERP_API.md
+* docs/CHANGELOG.md
+
+BUSINESS_RULES.md deve documentar claramente:
+
+CLIENTE → REPRESENTANTE → PADRÃO
+
+e:
+
+* vigência;
+* prioridade;
+* ausência de preço;
+* ambiguidade;
+* origem do preço.
+
+---
+
+# 23. NÃO IMPLEMENTAR
+
+Não implementar nesta fase:
+
+* orders;
+* order_items;
+* DiscountService;
+* descontos em cascata;
+* preço especial;
+* criação de orçamento;
+* finalização;
+* integração de pedidos;
+* status ERP do pedido.
+
+---
+
+# 24. VALIDAÇÃO
+
+Ao terminar executar:
+
+* migrations;
+* drift check;
+* typecheck;
+* testes;
+* build API;
+* build frontend;
+* OpenAPI/codegen;
+* validação HTTP.
+
+Não deixar erros pendentes.
+
+---
+
+# 25. RELATÓRIO FINAL
+
+Apresentar:
+
+## Banco
+
+Tabelas, índices e migrations.
+
+## PricingService
+
+Explique o algoritmo final.
+
+## Hierarquia
+
+Mostre exemplos:
+
+CUSTOMER
+REPRESENTATIVE
+STANDARD
+NOT FOUND
+
+## Vigência
+
+Explique a regra.
+
+## Ambiguidade
+
+Explique como foi tratada.
+
+## API ERP
+
+Mostre os contratos finais.
+
+## API Web
+
+Mostre o contrato de resolução.
+
+## Testes
+
+Informe total, aprovados e reprovados.
+
+## Builds
+
+Informe resultados.
+
+## Pendências
+
+Informe qualquer decisão ainda necessária.
+
+## Conclusão
+
+Diga explicitamente se:
+
+**Fase 3 concluída e pronta para iniciar a Fase 4.**
+
+Depois PARE.
+
+Não iniciar a Fase 4 automaticamente.
