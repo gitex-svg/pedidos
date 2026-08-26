@@ -5,13 +5,13 @@
  * API da plataforma de pedidos e orçamentos Fitas Gitex
  * OpenAPI spec version: 0.1.0
  */
-import type { SyncResultResultsItemReason } from './syncResultResultsItemReason';
-import type { SyncResultResultsItemStatus } from './syncResultResultsItemStatus';
+import type { SyncItemReason } from './syncItemReason';
+import type { SyncItemStatus } from './syncItemStatus';
 
 export type SyncResultResultsItem = {
   index: number;
   external_id?: string;
-  status: SyncResultResultsItemStatus;
-  reason?: SyncResultResultsItemReason;
+  status: SyncItemStatus;
+  reason?: SyncItemReason;
   message?: string;
 };

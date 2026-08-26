@@ -12,8 +12,8 @@ são atômicos no PostgreSQL; consultas paginadas aplicam filtros, contagem e of
 - **Banco:** PostgreSQL com Drizzle ORM e migrations versionadas.
 - **Validação:** Zod nas fronteiras HTTP.
 - **Autenticação:** Better Auth completo, com adaptador Drizzle para PostgreSQL. A biblioteca valida credenciais, cria e valida sessões, assina cookies, controla expiração e revoga a sessão no logout.
-- **Integração ERP (Fase 2):** endpoints de entrada autenticados por Bearer
-  token para sincronizar os cadastros de referência.
+- **Integração ERP (Fases 2 e 3):** endpoints de entrada autenticados por Bearer
+  token para sincronizar cadastros de referência, tabelas de preço e seus itens.
 
 ## Separação
 
@@ -21,7 +21,7 @@ são atômicos no PostgreSQL; consultas paginadas aplicam filtros, contagem e of
 - `artifacts/api-server`: rotas, autorização e serviços.
 - `lib/api-spec`: contrato OpenAPI.
 - `lib/db`: schema e migrations.
-- `services`: contratos de regras comerciais, sem implementação nesta fase.
+- `services`: regras comerciais de backend; na Fase 3 inclui a resolução centralizada de preço.
 
 Regras comerciais não devem ser implementadas em componentes React.
 
@@ -48,6 +48,33 @@ cadastros; é uma consumidora read-only dos dados sincronizados.
 
 O contrato de payloads e respostas está em `docs/ERP_API.md` e em
 `lib/api-spec/openapi.yaml`.
+
+## Motor de preços — Fase 3
+
+`PricingService` concentra vigência, escopo e a hierarquia
+**CUSTOMER → REPRESENTATIVE → STANDARD**. A API recebe cliente e produto; o
+representante é derivado do vínculo do cliente e nunca aceito do frontend. O
+serviço valida cliente, representante e produto ativos, aplica
+`valid_from <= referência <= valid_until` (limites inclusivos e nulos
+ilimitados), e consulta somente tabelas ativas.
+
+O endpoint autenticado `GET /api/v1/pricing/resolve` respeita o escopo da
+sessão: ADMIN tem consulta global e REPRESENTATIVE somente clientes próprios.
+Ausência é um resultado `found=false`. Se mais de uma tabela aplicável no mesmo
+nível contiver o produto, a API retorna `409`; não existe desempate implícito.
+
+O ERP publica tabelas e itens em `/api/v1/erp/price-tables/sync` e
+`/api/v1/erp/price-table-items/sync`, com o mesmo processamento parcial,
+versionamento e correlação da Fase 2. Essa borda usa apenas `erp_code`,
+`representative_erp_code`, `customer_erp_code`, `price_table_erp_code` e
+`product_erp_id`, resolvendo UUIDs internamente.
+
+Preços trafegam como strings decimais e permanecem `NUMERIC(18,6)` no
+PostgreSQL. A entrada aceita zeros à esquerda e o servidor completa a fração
+para seis casas na resposta. Nenhuma etapa financeira os converte para `number`
+JavaScript. O banco também rejeita intervalos cuja data inicial seja posterior
+à final quando ambas existirem.
+Pedidos, descontos e preço especial não pertencem à Fase 3.
 
 ## Compatibilidade HTTP
 

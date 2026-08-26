@@ -20,6 +20,7 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AmbiguousPriceResponse,
   AuthSession,
   AuthUser,
   CarrierPage,
@@ -36,9 +37,13 @@ import type {
   LoginInput,
   PaymentTermPage,
   PaymentTermSyncBatch,
+  PriceResolution,
+  PriceTableItemSyncBatch,
+  PriceTableSyncBatch,
   ProductPage,
   ProductSyncBatch,
   RepresentativeSyncBatch,
+  ResolvePriceParams,
   SyncResultResponse
 } from './api.schemas';
 
@@ -831,6 +836,96 @@ export function useListCarriers<TData = Awaited<ReturnType<typeof listCarriers>>
 
 
 
+export const getResolvePriceUrl = (params: ResolvePriceParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/pricing/resolve?${stringifiedParams}` : `/api/v1/pricing/resolve`
+}
+
+/**
+ * Aplica, nesta ordem, as origens CUSTOMER, REPRESENTATIVE e STANDARD.
+ * A vigência é inclusiva nas duas extremidades. O representante é sempre
+ * obtido do cliente; nenhum identificador de representante é aceito.
+ * REPRESENTATIVE só pode consultar clientes do próprio vínculo e ADMIN
+ * pode consultar qualquer cliente. Mais de uma tabela aplicável no mesmo
+ * nível é erro explícito, nunca uma escolha arbitrária.
+ * @summary Resolve o preço vigente de um produto para um cliente
+ */
+export const resolvePrice = async (params: ResolvePriceParams, options?: Parameters<typeof customFetch>[1]): Promise<PriceResolution> => {
+
+  return customFetch<PriceResolution>(getResolvePriceUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getResolvePriceQueryKey = (params?: ResolvePriceParams,) => {
+    return [
+    `/api/v1/pricing/resolve`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getResolvePriceQueryOptions = <TData = Awaited<ReturnType<typeof resolvePrice>>, TError = ErrorType<ErrorResponse | AmbiguousPriceResponse>>(params: ResolvePriceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof resolvePrice>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getResolvePriceQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof resolvePrice>>> = ({ signal }) => resolvePrice(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof resolvePrice>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ResolvePriceQueryResult = NonNullable<Awaited<ReturnType<typeof resolvePrice>>>
+export type ResolvePriceQueryError = ErrorType<ErrorResponse | AmbiguousPriceResponse>
+
+
+/**
+ * @summary Resolve o preço vigente de um produto para um cliente
+ */
+
+export function useResolvePrice<TData = Awaited<ReturnType<typeof resolvePrice>>, TError = ErrorType<ErrorResponse | AmbiguousPriceResponse>>(
+ params: ResolvePriceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof resolvePrice>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getResolvePriceQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getSyncRepresentativesUrl = () => {
 
 
@@ -1154,5 +1249,153 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getSyncCarriersMutationOptions(options));
+    }
+
+export const getSyncPriceTablesUrl = () => {
+
+
+
+
+  return `/api/v1/erp/price-tables/sync`
+}
+
+/**
+ * Aceita somente códigos externos do ERP. STANDARD não recebe escopo;
+ * REPRESENTATIVE usa representative_erp_code; CUSTOMER usa
+ * customer_erp_code. UUIDs internos não fazem parte deste contrato.
+ * @summary Sincroniza tabelas de preço por identificadores externos
+ */
+export const syncPriceTables = async (priceTableSyncBatch: PriceTableSyncBatch, options?: Parameters<typeof customFetch>[1]): Promise<SyncResultResponse> => {
+
+  return customFetch<SyncResultResponse>(getSyncPriceTablesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(priceTableSyncBatch)
+  }
+);}
+
+
+
+
+
+export const getSyncPriceTablesMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncPriceTables>>, TError,{data: BodyType<PriceTableSyncBatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncPriceTables>>, TError,{data: BodyType<PriceTableSyncBatch>}, TContext> => {
+
+const mutationKey = ['syncPriceTables'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncPriceTables>>, {data: BodyType<PriceTableSyncBatch>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  syncPriceTables(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncPriceTablesMutationResult = NonNullable<Awaited<ReturnType<typeof syncPriceTables>>>
+    export type SyncPriceTablesMutationBody = BodyType<PriceTableSyncBatch>
+    export type SyncPriceTablesMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Sincroniza tabelas de preço por identificadores externos
+ */
+export const useSyncPriceTables = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncPriceTables>>, TError,{data: BodyType<PriceTableSyncBatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof syncPriceTables>>,
+        TError,
+        {data: BodyType<PriceTableSyncBatch>},
+        TContext
+      > => {
+      return useMutation(getSyncPriceTablesMutationOptions(options));
+    }
+
+export const getSyncPriceTableItemsUrl = () => {
+
+
+
+
+  return `/api/v1/erp/price-table-items/sync`
+}
+
+/**
+ * A tabela e o produto são identificados exclusivamente por
+ * price_table_erp_code e product_erp_id. unit_price é texto decimal para
+ * preservar precisão; UUIDs internos não são aceitos.
+ * @summary Sincroniza preços de produtos nas tabelas
+ */
+export const syncPriceTableItems = async (priceTableItemSyncBatch: PriceTableItemSyncBatch, options?: Parameters<typeof customFetch>[1]): Promise<SyncResultResponse> => {
+
+  return customFetch<SyncResultResponse>(getSyncPriceTableItemsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(priceTableItemSyncBatch)
+  }
+);}
+
+
+
+
+
+export const getSyncPriceTableItemsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncPriceTableItems>>, TError,{data: BodyType<PriceTableItemSyncBatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof syncPriceTableItems>>, TError,{data: BodyType<PriceTableItemSyncBatch>}, TContext> => {
+
+const mutationKey = ['syncPriceTableItems'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof syncPriceTableItems>>, {data: BodyType<PriceTableItemSyncBatch>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  syncPriceTableItems(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SyncPriceTableItemsMutationResult = NonNullable<Awaited<ReturnType<typeof syncPriceTableItems>>>
+    export type SyncPriceTableItemsMutationBody = BodyType<PriceTableItemSyncBatch>
+    export type SyncPriceTableItemsMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Sincroniza preços de produtos nas tabelas
+ */
+export const useSyncPriceTableItems = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof syncPriceTableItems>>, TError,{data: BodyType<PriceTableItemSyncBatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof syncPriceTableItems>>,
+        TError,
+        {data: BodyType<PriceTableItemSyncBatch>},
+        TContext
+      > => {
+      return useMutation(getSyncPriceTableItemsMutationOptions(options));
     }
 

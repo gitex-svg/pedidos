@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ResolvePriceQueryParams } from "@workspace/api-zod";
 import { erpBatchSchema, erpItemSchemas, isStale } from "./erp";
 
 test("product ERP codes remain strings and preserve leading zeros", () => {
@@ -30,4 +31,14 @@ test("equal and older source timestamps are stale", () => {
   assert.equal(isStale(current, new Date("2026-02-02T12:00:00Z")), true);
   assert.equal(isStale(current, new Date("2026-02-01T12:00:00Z")), true);
   assert.equal(isStale(current, new Date("2026-02-03T12:00:00Z")), false);
+});
+
+test("generated pricing query contract coerces an HTTP date-time string", () => {
+  const parsed = ResolvePriceQueryParams.parse({
+    customerId: "11111111-1111-4111-8111-111111111111",
+    productId: "22222222-2222-4222-8222-222222222222",
+    referenceDate: "2026-06-15T12:30:00-03:00",
+  });
+  assert.ok(parsed.referenceDate instanceof Date);
+  assert.equal(parsed.referenceDate.toISOString(), "2026-06-15T15:30:00.000Z");
 });

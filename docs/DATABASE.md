@@ -35,16 +35,36 @@ remove o registro: ele é mantido para histórico e auditoria.
 - `user_role`: `ADMIN`, `REPRESENTATIVE`.
 - `internal_order_status`: `DRAFT`, `SUBMITTED`.
 - `erp_status`: estados comerciais enviados pelo ERP.
-- `price_origin`: `CUSTOMER`, `REPRESENTATIVE`, `STANDARD`, `SPECIAL`.
+- `price_origin`: `CUSTOMER`, `REPRESENTATIVE`, `STANDARD`, `SPECIAL`;
+  o resolvedor da Fase 3 produz somente os três primeiros e `SPECIAL` fica
+  reservado para a futura camada de pedidos.
 
 Sincronização técnica não é status comercial. Na Fase 2, a ordenação da origem
 é controlada por `source_updated_at`, e os logs de integração preservam a
 rastreabilidade por `correlation_id`.
 
-## Precisão financeira planejada
+## Tabelas de preço — Fase 3
 
-- preço unitário: `NUMERIC(18,6)`;
-- percentual: `NUMERIC(7,4)`;
-- total: `NUMERIC(20,6)`.
+- `price_tables`: chave externa única `erp_code`, `price_type`, escopo opcional
+  por `representative_id` ou `customer_id`, estado, vigência e metadados de
+  sincronização.
+- `price_table_items`: vínculo único `(price_table_id, product_id)`,
+  `unit_price NUMERIC(18,6)` e metadados de sincronização.
+- `price_type`: `STANDARD`, `REPRESENTATIVE`, `CUSTOMER`.
 
-As tabelas comerciais serão adicionadas somente nas fases correspondentes.
+Constraints de escopo mantêm STANDARD sem cliente/representante,
+REPRESENTATIVE com representante e sem cliente, e CUSTOMER somente com cliente.
+O representante de uma tabela CUSTOMER é derivado do cliente. Registros
+inativos não são apagados, preservando histórico.
+
+`valid_from` e `valid_until` são limites inclusivos; valores nulos deixam o
+respectivo lado em aberto. Sobreposições temporais não podem ser integralmente
+excluídas por uma unicidade simples, por isso o serviço detecta mais de uma
+tabela aplicável no mesmo nível e falha explicitamente. A constraint
+`price_tables_validity_range_check` impede que `valid_from` seja posterior a
+`valid_until` quando ambas as datas forem informadas.
+
+Preço unitário usa `NUMERIC(18,6)`: até 12 dígitos inteiros e 6 fracionários.
+Na API e no driver ele é string decimal; a entrada aceita zeros à esquerda e o
+servidor preserva a parte inteira, preenchendo a fração até seis casas na saída.
+Não se usa float/double nem `number` JavaScript para valores monetários.

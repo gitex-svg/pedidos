@@ -26,7 +26,9 @@ app.use(
   }),
 );
 app.use(cookieParser());
-app.use(express.json());
+// ERP synchronization accepts batches of up to 500 records. Keep the payload
+// ceiling explicit and bounded while allowing valid batches to reach Zod.
+app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);

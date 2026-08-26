@@ -49,6 +49,65 @@ export interface ErrorResponse {
   error: string;
 }
 
+export type PriceType = typeof PriceType[keyof typeof PriceType];
+
+
+export const PriceType = {
+  STANDARD: 'STANDARD',
+  REPRESENTATIVE: 'REPRESENTATIVE',
+  CUSTOMER: 'CUSTOMER',
+} as const;
+
+export type PriceOrigin = typeof PriceOrigin[keyof typeof PriceOrigin];
+
+
+export const PriceOrigin = {
+  CUSTOMER: 'CUSTOMER',
+  REPRESENTATIVE: 'REPRESENTATIVE',
+  STANDARD: 'STANDARD',
+} as const;
+
+/**
+ * Decimal exato, com 1 a 12 dígitos inteiros (zeros à esquerda permitidos) e de 1 a 6 casas decimais. Nunca enviar como JSON number; o servidor preserva a parte inteira e completa a fração para seis casas.
+ * @pattern ^[0-9]{1,12}\.[0-9]{1,6}$
+ */
+export type UnitPriceInput = string;
+
+/**
+ * Decimal exato normalizado com exatamente 6 casas decimais.
+ * @pattern ^[0-9]{1,12}\.[0-9]{6}$
+ */
+export type UnitPriceOutput = string;
+
+export interface PriceResolutionFound {
+  found: true;
+  productId: string;
+  customerId: string;
+  representativeId: string;
+  unitPrice: UnitPriceOutput;
+  origin: PriceOrigin;
+  priceTableId: string;
+  priceTableErpCode: string;
+}
+
+/**
+ * Ausência de preço não é representada por zero.
+ */
+export interface PriceResolutionNotFound {
+  found: false;
+  productId: string;
+  customerId: string;
+}
+
+export type PriceResolution = PriceResolutionFound | PriceResolutionNotFound;
+
+export interface AmbiguousPriceResponse {
+  error: string;
+  scope: PriceOrigin;
+  /** @minItems 2 */
+  priceTableIds: string[];
+}
+
 export interface PageMeta {
   page: number;
   pageSize: number;
@@ -200,6 +259,50 @@ export type CarrierSyncItem = SyncBase & ({
   tax_id?: string | null;
 });
 
+export type PriceTableSyncItem = SyncBase & (({
+  price_type?: 'STANDARD';
+} & ({
+  erp_code: string;
+  name: string;
+  price_type: PriceType;
+  representative_erp_code?: string;
+  customer_erp_code?: string;
+  /** @nullable */
+  valid_from: string | null;
+  /** @nullable */
+  valid_until: string | null;
+})) | ({
+  price_type?: 'REPRESENTATIVE';
+} & ({
+  erp_code: string;
+  name: string;
+  price_type: PriceType;
+  representative_erp_code?: string;
+  customer_erp_code?: string;
+  /** @nullable */
+  valid_from: string | null;
+  /** @nullable */
+  valid_until: string | null;
+})) | ({
+  price_type?: 'CUSTOMER';
+} & ({
+  erp_code: string;
+  name: string;
+  price_type: PriceType;
+  representative_erp_code?: string;
+  customer_erp_code?: string;
+  /** @nullable */
+  valid_from: string | null;
+  /** @nullable */
+  valid_until: string | null;
+})));
+
+export type PriceTableItemSyncItem = SyncBase & {
+  price_table_erp_code: string;
+  product_erp_id: string;
+  unit_price: UnitPriceInput;
+};
+
 export interface RepresentativeSyncBatch {
   correlation_id?: string;
   /** @maxItems 500 */
@@ -230,28 +333,46 @@ export interface CarrierSyncBatch {
   items: CarrierSyncItem[];
 }
 
+export interface PriceTableSyncBatch {
+  correlation_id?: string;
+  /** @maxItems 500 */
+  items: PriceTableSyncItem[];
+}
+
+export interface PriceTableItemSyncBatch {
+  correlation_id?: string;
+  /** @maxItems 500 */
+  items: PriceTableItemSyncItem[];
+}
+
 export type SyncResultItemErrorsItem = {
   index: number;
   external_id?: string;
   error: string;
 };
 
-export type SyncResultResultsItemStatus = typeof SyncResultResultsItemStatus[keyof typeof SyncResultResultsItemStatus];
+export type SyncItemStatus = typeof SyncItemStatus[keyof typeof SyncItemStatus];
 
 
-export const SyncResultResultsItemStatus = {
+export const SyncItemStatus = {
   created: 'created',
   updated: 'updated',
   ignored: 'ignored',
   error: 'error',
 } as const;
 
-export type SyncResultResultsItemReason = typeof SyncResultResultsItemReason[keyof typeof SyncResultResultsItemReason];
+/**
+ * Razão estável e adequada para tratamento programático.
+ */
+export type SyncItemReason = typeof SyncItemReason[keyof typeof SyncItemReason];
 
 
-export const SyncResultResultsItemReason = {
+export const SyncItemReason = {
   STALE_SOURCE_VERSION: 'STALE_SOURCE_VERSION',
   REPRESENTATIVE_NOT_FOUND: 'REPRESENTATIVE_NOT_FOUND',
+  CUSTOMER_NOT_FOUND: 'CUSTOMER_NOT_FOUND',
+  PRODUCT_NOT_FOUND: 'PRODUCT_NOT_FOUND',
+  PRICE_TABLE_NOT_FOUND: 'PRICE_TABLE_NOT_FOUND',
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   PERSISTENCE_ERROR: 'PERSISTENCE_ERROR',
 } as const;
@@ -259,8 +380,8 @@ export const SyncResultResultsItemReason = {
 export type SyncResultResultsItem = {
   index: number;
   external_id?: string;
-  status: SyncResultResultsItemStatus;
-  reason?: SyncResultResultsItemReason;
+  status: SyncItemStatus;
+  reason?: SyncItemReason;
   message?: string;
 };
 
@@ -466,5 +587,14 @@ search?: SearchParameter;
  */
 active?: ActiveParameter;
 order?: OrderParameter;
+};
+
+export type ResolvePriceParams = {
+customerId: string;
+productId: string;
+/**
+ * Data/hora de referência; na ausência, usa a data/hora atual do servidor.
+ */
+referenceDate?: string;
 };
 

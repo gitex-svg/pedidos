@@ -1,7 +1,10 @@
+import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   integer,
   jsonb,
+  numeric,
   pgEnum,
   pgTable,
   index,
@@ -36,6 +39,12 @@ export const priceOriginEnum = pgEnum("price_origin", [
   "REPRESENTATIVE",
   "STANDARD",
   "SPECIAL",
+]);
+
+export const priceTypeEnum = pgEnum("price_type", [
+  "STANDARD",
+  "REPRESENTATIVE",
+  "CUSTOMER",
 ]);
 
 export const integrationDirectionEnum = pgEnum("integration_direction", [
@@ -165,6 +174,72 @@ export const products = pgTable("products", {
   index("products_identity_search_idx").on(table.groupCode, table.typeCode, table.productCode, table.referenceCode),
 ]);
 
+export const priceTables = pgTable("price_tables", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: varchar("name", { length: 200 }).notNull(),
+  erpCode: varchar("erp_code", { length: 64 }).notNull().unique(),
+  priceType: priceTypeEnum("price_type").notNull(),
+  representativeId: uuid("representative_id").references(() => representatives.id, {
+    onDelete: "no action",
+    onUpdate: "no action",
+  }),
+  customerId: uuid("customer_id").references(() => customers.id, {
+    onDelete: "no action",
+    onUpdate: "no action",
+  }),
+  active: boolean("active").notNull().default(true),
+  validFrom: timestamp("valid_from", { withTimezone: true }),
+  validUntil: timestamp("valid_until", { withTimezone: true }),
+  sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }).notNull(),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  check(
+    "price_tables_scope_check",
+    sql`(
+      (${table.priceType} = 'STANDARD' AND ${table.representativeId} IS NULL AND ${table.customerId} IS NULL)
+      OR (${table.priceType} = 'REPRESENTATIVE' AND ${table.representativeId} IS NOT NULL AND ${table.customerId} IS NULL)
+      OR (${table.priceType} = 'CUSTOMER' AND ${table.representativeId} IS NULL AND ${table.customerId} IS NOT NULL)
+    )`,
+  ),
+  check(
+    "price_tables_validity_range_check",
+    sql`${table.validFrom} IS NULL OR ${table.validUntil} IS NULL OR ${table.validFrom} <= ${table.validUntil}`,
+  ),
+  index("price_tables_type_active_validity_idx").on(
+    table.priceType,
+    table.active,
+    table.validFrom,
+    table.validUntil,
+  ),
+  index("price_tables_representative_active_idx").on(table.representativeId, table.active),
+  index("price_tables_customer_active_idx").on(table.customerId, table.active),
+]);
+
+export const priceTableItems = pgTable("price_table_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  priceTableId: uuid("price_table_id").notNull().references(() => priceTables.id, {
+    onDelete: "no action",
+    onUpdate: "no action",
+  }),
+  productId: uuid("product_id").notNull().references(() => products.id, {
+    onDelete: "no action",
+    onUpdate: "no action",
+  }),
+  unitPrice: numeric("unit_price", { precision: 18, scale: 6, mode: "string" }).notNull(),
+  active: boolean("active").notNull().default(true),
+  version: integer("version").notNull().default(1),
+  sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }).notNull(),
+  lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("price_table_items_table_product_unique").on(table.priceTableId, table.productId),
+  index("price_table_items_table_active_idx").on(table.priceTableId, table.active),
+  index("price_table_items_product_active_idx").on(table.productId, table.active),
+]);
+
 export const paymentTerms = pgTable("payment_terms", {
   id: uuid("id").defaultRandom().primaryKey(),
   erpCode: varchar("erp_code", { length: 64 }).notNull().unique(),
@@ -222,12 +297,18 @@ export const insertCustomerSchema = createInsertSchema(customers);
 export const insertProductSchema = createInsertSchema(products);
 export const insertPaymentTermSchema = createInsertSchema(paymentTerms);
 export const insertCarrierSchema = createInsertSchema(carriers);
+export const insertPriceTableSchema = createInsertSchema(priceTables);
+export const insertPriceTableItemSchema = createInsertSchema(priceTableItems);
 
 export type User = typeof user.$inferSelect;
 export type Session = typeof session.$inferSelect;
 export type Representative = typeof representatives.$inferSelect;
 export type Customer = typeof customers.$inferSelect;
 export type Product = typeof products.$inferSelect;
+export type PriceTable = typeof priceTables.$inferSelect;
+export type PriceTableItem = typeof priceTableItems.$inferSelect;
 export type InsertUser = typeof user.$inferInsert;
 export type InsertSession = typeof session.$inferInsert;
 export type InsertRepresentative = typeof representatives.$inferInsert;
+export type InsertPriceTable = typeof priceTables.$inferInsert;
+export type InsertPriceTableItem = typeof priceTableItems.$inferInsert;

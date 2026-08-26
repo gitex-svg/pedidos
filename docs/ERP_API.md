@@ -1,10 +1,10 @@
-# API de integração ERP — Fase 2
+# API de integração ERP — Fases 2 e 3
 
 ## Responsabilidade e segurança
 
 O ERP é a fonte de verdade de representantes, clientes, produtos, condições de
-pagamento e transportadoras. A aplicação web consome esses dados apenas para
-leitura; os usuários da web não alteram os cadastros.
+pagamento, transportadoras, tabelas de preço e preços por produto. A aplicação
+web não mantém esses dados manualmente.
 
 Os endpoints de integração exigem:
 
@@ -26,6 +26,8 @@ capturas de tela ou logs. Uma chave ausente ou inválida recebe `401`.
 | Produtos | `POST /api/v1/erp/products/sync` |
 | Condições de pagamento | `POST /api/v1/erp/payment-terms/sync` |
 | Transportadoras | `POST /api/v1/erp/carriers/sync` |
+| Tabelas de preço | `POST /api/v1/erp/price-tables/sync` |
+| Itens das tabelas | `POST /api/v1/erp/price-table-items/sync` |
 
 Os consumidores web consultam, respectivamente, `GET /api/v1/customers`,
 `/products`, `/payment-terms` e `/carriers`. As listagens usam `page=1` e
@@ -69,13 +71,41 @@ OpenAPI em `lib/api-spec/openapi.yaml`.
 
 Cada resposta mantém contadores e `item_errors` e inclui um `results` em ordem,
 com um resultado por item. As razões estáveis são `STALE_SOURCE_VERSION`,
-`REPRESENTATIVE_NOT_FOUND`, `VALIDATION_ERROR` e `PERSISTENCE_ERROR`.
+`REPRESENTATIVE_NOT_FOUND`, `CUSTOMER_NOT_FOUND`, `PRODUCT_NOT_FOUND`,
+`PRICE_TABLE_NOT_FOUND`, `VALIDATION_ERROR` e `PERSISTENCE_ERROR`.
 O `correlation_id` UUID fornecido é preservado; quando ausente, é gerado e
 persistido em `integration_logs`.
 
-## Fora do escopo da Fase 2
+## Preços — contrato da Fase 3
 
-A Fase 3 abrange, e portanto permanece fora deste contrato: criação e gestão
-de pedidos/orçamentos; preços, descontos, impostos e fretes operacionais;
-aprovação e status comerciais; faturamento; e a integração de pedidos e seus
-retornos com o ERP.
+Uma tabela envia `erp_code`, `name`, `price_type`, vigência, estado e
+`source_updated_at`. `price_type` aceita `STANDARD`, `REPRESENTATIVE` e
+`CUSTOMER`. STANDARD não envia escopo; REPRESENTATIVE envia
+`representative_erp_code`; CUSTOMER envia `customer_erp_code`.
+
+Cada item envia `price_table_erp_code`, `product_erp_id`, `unit_price` e
+`source_updated_at`. A integração **não aceita UUIDs internos**: referências
+são sempre códigos externos e resolvidas no servidor. Tabela, produto, cliente
+ou representante inexistente falham somente o item e produzem a razão estável
+correspondente.
+
+`unit_price` é string decimal, nunca JSON number, com até 12 dígitos inteiros e
+de 1 a 6 casas, inclusive zeros à esquerda (`"003.25"` ou `"3.250000"`). O
+servidor preserva a parte inteira e completa a fração até seis casas. O banco
+usa `NUMERIC(18,6)` e a leitura web devolve exatamente seis casas, sem
+conversão por `number` JavaScript.
+
+As tabelas obedecem a vigência inclusiva: `valid_from` nulo ou menor/igual à
+referência e `valid_until` nulo ou maior/igual à referência. A resolução web
+autenticada usa `GET /api/v1/pricing/resolve`, com `customerId`, `productId` e
+`referenceDate` opcional, seguindo CUSTOMER → REPRESENTATIVE → STANDARD.
+REPRESENTATIVE só consulta cliente próprio; ADMIN tem escopo global. Ausência
+retorna `found=false`; ambiguidade no mesmo nível retorna `409`.
+O banco rejeita uma tabela cujo `valid_from` seja posterior a `valid_until`
+quando as duas datas existirem.
+
+## Fora do escopo da Fase 3
+
+Permanecem fora deste contrato: criação e gestão de pedidos/orçamentos e itens;
+descontos e preço especial; impostos e fretes operacionais; aprovação e status
+comerciais; faturamento; e integração de pedidos e seus retornos com o ERP.

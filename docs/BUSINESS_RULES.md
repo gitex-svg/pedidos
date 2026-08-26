@@ -10,11 +10,36 @@
 
 Hierarquia obrigatória: `CUSTOMER` → `REPRESENTATIVE` → `STANDARD`.
 
-O item preservará `suggested_price_origin` e `effective_price_origin`. Preço especial usa origem efetiva `SPECIAL` sem apagar a origem sugerida.
+Para cliente e produto ativos, procura-se primeiro uma tabela CUSTOMER do
+cliente; sem item aplicável, uma tabela REPRESENTATIVE do representante
+associado ao cliente; por fim, uma tabela STANDARD. O frontend não informa o
+representante. A origem retornada é exatamente `CUSTOMER`, `REPRESENTATIVE` ou
+`STANDARD`.
 
-## Descontos
+Uma tabela é aplicável quando está ativa e `valid_from` é nulo ou menor/igual à
+referência, e `valid_until` é nulo ou maior/igual à referência. Os dois limites
+são inclusivos. Sem referência explícita, usa-se a data/hora atual do servidor.
 
-Descontos 1 a 4 são aplicados em cascata. Itens com preço especial não recebem os descontos, mas preservam o snapshot informado na capa.
+Se nenhum nível contiver preço, o resultado é `found=false`; zero nunca
+representa ausência. Se duas ou mais tabelas aplicáveis no mesmo nível
+contiverem o produto, há ambiguidade e a API retorna `409`, sem selecionar por
+ordem ou acaso. Um preço em nível prioritário vence os níveis inferiores.
+
+Preço é string decimal na fronteira e `NUMERIC(18,6)` no PostgreSQL. A entrada
+permite zeros à esquerda e de uma a seis casas; a canonicalização preserva a
+parte inteira e completa a fração, e a saída sempre possui seis casas. Não há
+conversão monetária para `number` JavaScript.
+
+Tabelas e itens são sincronizados pelo ERP, em lotes de até 500 itens, por
+códigos externos. Aplicam-se UPSERT idempotente, `source_updated_at`,
+`correlation_id`, processamento parcial (`207`) e inativação lógica. As razões
+estáveis incluem `CUSTOMER_NOT_FOUND`, `PRODUCT_NOT_FOUND` e
+`PRICE_TABLE_NOT_FOUND`; UUID interno não faz parte da integração.
+
+## Descontos e pedidos
+
+Pedidos, itens de pedido, descontos em cascata e preço especial são regras
+futuras e não são implementados na Fase 3.
 
 ## Segurança
 
@@ -48,11 +73,10 @@ Grupo, tipo, produto e referência são textos e preservam zeros à esquerda. A 
 - Toda sincronização pode trazer `correlation_id`, utilizado nos logs de
   integração e devolvido na resposta para rastreabilidade.
 
-## Escopo explicitamente fora da Fase 2 (Fase 3)
+## Escopo explicitamente fora da Fase 3
 
-- Criação, edição, envio ou aprovação de pedidos e orçamentos.
-- Cálculo e aplicação operacional de preços, descontos, impostos, fretes ou
-  condições comerciais em pedidos.
+- Criação, edição, envio ou aprovação de pedidos e orçamentos e seus itens.
+- Descontos, preço especial, impostos, fretes ou condições comerciais em pedidos.
 - Integração de pedidos, status comerciais, faturamento ou retorno operacional
   do ERP.
 - Operações de escrita de catálogo na interface web.

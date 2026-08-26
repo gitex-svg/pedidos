@@ -1,0 +1,1 @@
+ALTER TABLE "price_tables" ADD CONSTRAINT "price_tables_validity_range_check" CHECK ("price_tables"."valid_from" IS NULL OR "price_tables"."valid_until" IS NULL OR "price_tables"."valid_from" <= "price_tables"."valid_until");

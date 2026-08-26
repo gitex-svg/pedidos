@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type SyncResultResultsItemStatus = typeof SyncResultResultsItemStatus[keyof typeof SyncResultResultsItemStatus];
+export type SyncItemStatus = typeof SyncItemStatus[keyof typeof SyncItemStatus];
 
 
-export const SyncResultResultsItemStatus = {
+export const SyncItemStatus = {
   created: 'created',
   updated: 'updated',
   ignored: 'ignored',

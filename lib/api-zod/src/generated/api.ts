@@ -257,6 +257,40 @@ export const ListCarriersResponse = zod.object({
 }))
 
 
+/**
+ * Aplica, nesta ordem, as origens CUSTOMER, REPRESENTATIVE e STANDARD.
+ * A vigência é inclusiva nas duas extremidades. O representante é sempre
+ * obtido do cliente; nenhum identificador de representante é aceito.
+ * REPRESENTATIVE só pode consultar clientes do próprio vínculo e ADMIN
+ * pode consultar qualquer cliente. Mais de uma tabela aplicável no mesmo
+ * nível é erro explícito, nunca uma escolha arbitrária.
+ * @summary Resolve o preço vigente de um produto para um cliente
+ */
+export const ResolvePriceQueryParams = zod.object({
+  "customerId": zod.uuid(),
+  "productId": zod.uuid(),
+  "referenceDate": zod.coerce.date().optional().describe('Data\/hora de referência; na ausência, usa a data\/hora atual do servidor.')
+})
+
+export const resolvePriceResponseOneUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+
+
+export const ResolvePriceResponse = zod.union([zod.object({
+  "found": zod.literal(true),
+  "productId": zod.uuid(),
+  "customerId": zod.uuid(),
+  "representativeId": zod.uuid(),
+  "unitPrice": zod.string().regex(resolvePriceResponseOneUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "origin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD']),
+  "priceTableId": zod.uuid(),
+  "priceTableErpCode": zod.string()
+}),zod.object({
+  "found": zod.literal(false),
+  "productId": zod.uuid(),
+  "customerId": zod.uuid()
+}).describe('Ausência de preço não é representada por zero.')])
+
+
 export const syncRepresentativesBodyItemsItemOneActiveDefault = true;
 export const syncRepresentativesBodyItemsMax = 500;
 
@@ -290,7 +324,7 @@ export const SyncRepresentativesResponse = zod.object({
   "index": zod.int(),
   "external_id": zod.string().optional(),
   "status": zod.enum(['created', 'updated', 'ignored', 'error']),
-  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional(),
+  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'CUSTOMER_NOT_FOUND', 'PRODUCT_NOT_FOUND', 'PRICE_TABLE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional().describe('Razão estável e adequada para tratamento programático.'),
   "message": zod.string().optional()
 }))
 })
@@ -333,7 +367,7 @@ export const SyncCustomersResponse = zod.object({
   "index": zod.int(),
   "external_id": zod.string().optional(),
   "status": zod.enum(['created', 'updated', 'ignored', 'error']),
-  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional(),
+  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'CUSTOMER_NOT_FOUND', 'PRODUCT_NOT_FOUND', 'PRICE_TABLE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional().describe('Razão estável e adequada para tratamento programático.'),
   "message": zod.string().optional()
 }))
 })
@@ -392,7 +426,7 @@ export const SyncProductsResponse = zod.object({
   "index": zod.int(),
   "external_id": zod.string().optional(),
   "status": zod.enum(['created', 'updated', 'ignored', 'error']),
-  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional(),
+  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'CUSTOMER_NOT_FOUND', 'PRODUCT_NOT_FOUND', 'PRICE_TABLE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional().describe('Razão estável e adequada para tratamento programático.'),
   "message": zod.string().optional()
 }))
 })
@@ -431,7 +465,7 @@ export const SyncPaymentTermsResponse = zod.object({
   "index": zod.int(),
   "external_id": zod.string().optional(),
   "status": zod.enum(['created', 'updated', 'ignored', 'error']),
-  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional(),
+  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'CUSTOMER_NOT_FOUND', 'PRODUCT_NOT_FOUND', 'PRICE_TABLE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional().describe('Razão estável e adequada para tratamento programático.'),
   "message": zod.string().optional()
 }))
 })
@@ -470,7 +504,108 @@ export const SyncCarriersResponse = zod.object({
   "index": zod.int(),
   "external_id": zod.string().optional(),
   "status": zod.enum(['created', 'updated', 'ignored', 'error']),
-  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional(),
+  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'CUSTOMER_NOT_FOUND', 'PRODUCT_NOT_FOUND', 'PRICE_TABLE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional().describe('Razão estável e adequada para tratamento programático.'),
+  "message": zod.string().optional()
+}))
+})
+
+
+/**
+ * Aceita somente códigos externos do ERP. STANDARD não recebe escopo;
+ * REPRESENTATIVE usa representative_erp_code; CUSTOMER usa
+ * customer_erp_code. UUIDs internos não fazem parte deste contrato.
+ * @summary Sincroniza tabelas de preço por identificadores externos
+ */
+export const syncPriceTablesBodyItemsItemOneActiveDefault = true;
+export const syncPriceTablesBodyItemsMax = 500;
+
+
+
+export const SyncPriceTablesBody = zod.object({
+  "correlation_id": zod.uuid().optional(),
+  "items": zod.array(zod.object({
+  "active": zod.boolean().default(syncPriceTablesBodyItemsItemOneActiveDefault),
+  "source_updated_at": zod.coerce.date()
+}).and(zod.union([zod.object({
+  "price_type": zod.literal("STANDARD").optional()
+}),zod.object({
+  "price_type": zod.literal("REPRESENTATIVE").optional()
+}),zod.object({
+  "price_type": zod.literal("CUSTOMER").optional()
+})]).and(zod.object({
+  "erp_code": zod.string(),
+  "name": zod.string(),
+  "price_type": zod.enum(['STANDARD', 'REPRESENTATIVE', 'CUSTOMER']),
+  "representative_erp_code": zod.string().optional(),
+  "customer_erp_code": zod.string().optional(),
+  "valid_from": zod.coerce.date().nullable(),
+  "valid_until": zod.coerce.date().nullable()
+})).describe('Escopo condicional: STANDARD não permite códigos de escopo;\nREPRESENTATIVE exige somente representative_erp_code; CUSTOMER\nexige somente customer_erp_code.\n'))).max(syncPriceTablesBodyItemsMax)
+})
+
+export const SyncPriceTablesResponse = zod.object({
+  "correlation_id": zod.uuid(),
+  "received": zod.int(),
+  "created": zod.int(),
+  "updated": zod.int(),
+  "ignored": zod.int(),
+  "errors": zod.int(),
+  "item_errors": zod.array(zod.object({
+  "index": zod.int(),
+  "external_id": zod.string().optional(),
+  "error": zod.string()
+})),
+  "results": zod.array(zod.object({
+  "index": zod.int(),
+  "external_id": zod.string().optional(),
+  "status": zod.enum(['created', 'updated', 'ignored', 'error']),
+  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'CUSTOMER_NOT_FOUND', 'PRODUCT_NOT_FOUND', 'PRICE_TABLE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional().describe('Razão estável e adequada para tratamento programático.'),
+  "message": zod.string().optional()
+}))
+})
+
+
+/**
+ * A tabela e o produto são identificados exclusivamente por
+ * price_table_erp_code e product_erp_id. unit_price é texto decimal para
+ * preservar precisão; UUIDs internos não são aceitos.
+ * @summary Sincroniza preços de produtos nas tabelas
+ */
+export const syncPriceTableItemsBodyItemsItemOneActiveDefault = true;
+export const syncPriceTableItemsBodyItemsItemTwoUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{1,6}$');
+export const syncPriceTableItemsBodyItemsMax = 500;
+
+
+
+export const SyncPriceTableItemsBody = zod.object({
+  "correlation_id": zod.uuid().optional(),
+  "items": zod.array(zod.object({
+  "active": zod.boolean().default(syncPriceTableItemsBodyItemsItemOneActiveDefault),
+  "source_updated_at": zod.coerce.date()
+}).and(zod.object({
+  "price_table_erp_code": zod.string(),
+  "product_erp_id": zod.string(),
+  "unit_price": zod.string().regex(syncPriceTableItemsBodyItemsItemTwoUnitPriceRegExp).describe('Decimal exato, com 1 a 12 dígitos inteiros (zeros à esquerda permitidos) e de 1 a 6 casas decimais. Nunca enviar como JSON number; o servidor preserva a parte inteira e completa a fração para seis casas.')
+}))).max(syncPriceTableItemsBodyItemsMax)
+})
+
+export const SyncPriceTableItemsResponse = zod.object({
+  "correlation_id": zod.uuid(),
+  "received": zod.int(),
+  "created": zod.int(),
+  "updated": zod.int(),
+  "ignored": zod.int(),
+  "errors": zod.int(),
+  "item_errors": zod.array(zod.object({
+  "index": zod.int(),
+  "external_id": zod.string().optional(),
+  "error": zod.string()
+})),
+  "results": zod.array(zod.object({
+  "index": zod.int(),
+  "external_id": zod.string().optional(),
+  "status": zod.enum(['created', 'updated', 'ignored', 'error']),
+  "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'CUSTOMER_NOT_FOUND', 'PRODUCT_NOT_FOUND', 'PRICE_TABLE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional().describe('Razão estável e adequada para tratamento programático.'),
   "message": zod.string().optional()
 }))
 })

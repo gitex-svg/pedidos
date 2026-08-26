@@ -6,12 +6,18 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type SyncResultResultsItemReason = typeof SyncResultResultsItemReason[keyof typeof SyncResultResultsItemReason];
+/**
+ * Razão estável e adequada para tratamento programático.
+ */
+export type SyncItemReason = typeof SyncItemReason[keyof typeof SyncItemReason];
 
 
-export const SyncResultResultsItemReason = {
+export const SyncItemReason = {
   STALE_SOURCE_VERSION: 'STALE_SOURCE_VERSION',
   REPRESENTATIVE_NOT_FOUND: 'REPRESENTATIVE_NOT_FOUND',
+  CUSTOMER_NOT_FOUND: 'CUSTOMER_NOT_FOUND',
+  PRODUCT_NOT_FOUND: 'PRODUCT_NOT_FOUND',
+  PRICE_TABLE_NOT_FOUND: 'PRICE_TABLE_NOT_FOUND',
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   PERSISTENCE_ERROR: 'PERSISTENCE_ERROR',
 } as const;

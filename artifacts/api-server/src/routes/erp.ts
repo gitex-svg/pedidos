@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { Router, type IRouter } from "express";
-import { carriers, customers, db, integrationLogs, paymentTerms, products, representatives } from "@workspace/db";
+import {
+  carriers, customers, db, integrationLogs, paymentTerms, priceTableItems, priceTables,
+  priceTypeEnum, products, representatives,
+} from "@workspace/db";
 import { eq, or, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireErpApiKey } from "../middlewares/erp-api-key";
@@ -9,6 +12,42 @@ const router: IRouter = Router();
 const code = z.string().trim().min(1).max(128);
 const sourceUpdatedAt = z.coerce.date();
 const base = { active: z.boolean().default(true), source_updated_at: sourceUpdatedAt };
+const nullableDate = z.coerce.date().nullable();
+const decimalPrice = z.string().regex(
+  /^\d{1,12}\.\d{1,6}$/,
+  "unit_price must contain 1-12 integer digits and 1-6 fractional digits",
+);
+export function canonicalPrice(value: string) {
+  const [integer, fraction = ""] = value.split(".");
+  const canonicalInteger = integer.replace(/^0+(?=\d)/, "");
+  return `${canonicalInteger}.${fraction.padEnd(6, "0")}`;
+}
+const priceTableSchema = z.object({
+  erp_code: code,
+  name: z.string().trim().min(1).max(200),
+  price_type: z.enum(priceTypeEnum.enumValues),
+  representative_erp_code: code.optional(),
+  customer_erp_code: code.optional(),
+  valid_from: nullableDate,
+  valid_until: nullableDate,
+  ...base,
+}).superRefine((item, context) => {
+  if (item.price_type === "REPRESENTATIVE" && !item.representative_erp_code) {
+    context.addIssue({ code: "custom", path: ["representative_erp_code"], message: "Required for REPRESENTATIVE price tables." });
+  }
+  if (item.price_type !== "REPRESENTATIVE" && item.representative_erp_code !== undefined) {
+    context.addIssue({ code: "custom", path: ["representative_erp_code"], message: "Only allowed for REPRESENTATIVE price tables." });
+  }
+  if (item.price_type === "CUSTOMER" && !item.customer_erp_code) {
+    context.addIssue({ code: "custom", path: ["customer_erp_code"], message: "Required for CUSTOMER price tables." });
+  }
+  if (item.price_type !== "CUSTOMER" && item.customer_erp_code !== undefined) {
+    context.addIssue({ code: "custom", path: ["customer_erp_code"], message: "Only allowed for CUSTOMER price tables." });
+  }
+  if (item.valid_from && item.valid_until && item.valid_from > item.valid_until) {
+    context.addIssue({ code: "custom", path: ["valid_until"], message: "Must not precede valid_from." });
+  }
+});
 export const erpItemSchemas = {
   representatives: z.object({ erp_code: code, name: z.string().trim().min(1).max(200), email: z.email().nullish(), ...base }),
   customers: z.object({
@@ -30,12 +69,22 @@ export const erpItemSchemas = {
     erp_code: code, name: z.string().trim().min(1).max(200),
     tax_id: z.string().trim().max(32).nullish(), ...base,
   }),
+  "price-tables": priceTableSchema,
+  "price-table-items": z.object({
+    price_table_erp_code: code,
+    product_erp_id: code,
+    unit_price: decimalPrice,
+    ...base,
+  }),
 } as const;
 
 type Counters = { received: number; created: number; updated: number; ignored: number; errors: number };
 type Outcome = "created" | "updated" | "ignored";
 type Result = { index: number; external_id?: string; status: Outcome | "error"; reason?: string; message?: string };
 class RepresentativeNotFoundError extends Error {}
+class PriceTableNotFoundError extends Error {}
+class ProductNotFoundError extends Error {}
+class CustomerNotFoundError extends Error {}
 
 export function isStale(current: Date | null, incoming: Date) {
   return current !== null && incoming.getTime() <= current.getTime();
@@ -109,6 +158,53 @@ const handlers: Record<keyof typeof erpItemSchemas, (item: any) => Promise<Outco
       }).returning({ created: sql<boolean>`xmax = 0` });
     return !result ? "ignored" : result.created ? "created" : "updated";
   },
+  "price-tables": async item => {
+    let representativeId: string | null = null;
+    let customerId: string | null = null;
+    if (item.price_type === "REPRESENTATIVE") {
+      const [representative] = await db.select({ id: representatives.id }).from(representatives)
+        .where(eq(representatives.erpCode, item.representative_erp_code)).limit(1);
+      if (!representative) throw new RepresentativeNotFoundError();
+      representativeId = representative.id;
+    } else if (item.price_type === "CUSTOMER") {
+      const [customer] = await db.select({ id: customers.id }).from(customers)
+        .where(eq(customers.erpCode, item.customer_erp_code)).limit(1);
+      if (!customer) throw new CustomerNotFoundError();
+      customerId = customer.id;
+    }
+    const values = {
+      name: item.name, priceType: item.price_type, representativeId, customerId,
+      validFrom: item.valid_from, validUntil: item.valid_until, active: item.active,
+      sourceUpdatedAt: item.source_updated_at, lastSyncedAt: new Date(), updatedAt: new Date(),
+    };
+    const [result] = await db.insert(priceTables).values({ erpCode: item.erp_code, ...values })
+      .onConflictDoUpdate({
+        target: priceTables.erpCode, set: values,
+        setWhere: sql`${priceTables.sourceUpdatedAt} < excluded.source_updated_at`,
+      }).returning({ created: sql<boolean>`xmax = 0` });
+    return !result ? "ignored" : result.created ? "created" : "updated";
+  },
+  "price-table-items": async item => {
+    const [[priceTable], [product]] = await Promise.all([
+      db.select({ id: priceTables.id }).from(priceTables)
+        .where(eq(priceTables.erpCode, item.price_table_erp_code)).limit(1),
+      db.select({ id: products.id }).from(products)
+        .where(eq(products.erpId, item.product_erp_id)).limit(1),
+    ]);
+    if (!priceTable) throw new PriceTableNotFoundError();
+    if (!product) throw new ProductNotFoundError();
+    const values = {
+      unitPrice: canonicalPrice(item.unit_price), active: item.active,
+      sourceUpdatedAt: item.source_updated_at, lastSyncedAt: new Date(), updatedAt: new Date(),
+    };
+    const [result] = await db.insert(priceTableItems)
+      .values({ priceTableId: priceTable.id, productId: product.id, ...values })
+      .onConflictDoUpdate({
+        target: [priceTableItems.priceTableId, priceTableItems.productId], set: values,
+        setWhere: sql`${priceTableItems.sourceUpdatedAt} < excluded.source_updated_at`,
+      }).returning({ created: sql<boolean>`xmax = 0` });
+    return !result ? "ignored" : result.created ? "created" : "updated";
+  },
 };
 
 export const erpBatchSchema = z.object({
@@ -127,7 +223,9 @@ for (const entity of Object.keys(erpItemSchemas) as (keyof typeof erpItemSchemas
     for (const [index, raw] of batch.data.items.entries()) {
       const parsed = erpItemSchemas[entity].safeParse(raw);
       const externalId = raw && typeof raw === "object"
-        ? String(("erp_id" in raw ? raw.erp_id : "erp_code" in raw ? raw.erp_code : "") ?? "") : "";
+        ? String(("erp_id" in raw ? raw.erp_id
+          : "erp_code" in raw ? raw.erp_code
+            : "product_erp_id" in raw ? raw.product_erp_id : "") ?? "") : "";
       if (!parsed.success) {
         counters.errors++;
         const error = z.prettifyError(parsed.error);
@@ -144,16 +242,23 @@ for (const entity of Object.keys(erpItemSchemas) as (keyof typeof erpItemSchemas
         });
       } catch (error) {
         counters.errors++;
-        const missingRepresentative = error instanceof RepresentativeNotFoundError;
-        const message = missingRepresentative ? "Representante ERP não encontrado." : "Erro ao persistir item.";
+        const knownError = error instanceof RepresentativeNotFoundError
+          ? { reason: "REPRESENTATIVE_NOT_FOUND", message: "Representante ERP não encontrado." }
+          : error instanceof PriceTableNotFoundError
+            ? { reason: "PRICE_TABLE_NOT_FOUND", message: "Tabela de preço ERP não encontrada." }
+            : error instanceof ProductNotFoundError
+              ? { reason: "PRODUCT_NOT_FOUND", message: "Produto ERP não encontrado." }
+              : error instanceof CustomerNotFoundError
+                ? { reason: "CUSTOMER_NOT_FOUND", message: "Cliente ERP não encontrado." }
+                : { reason: "PERSISTENCE_ERROR", message: "Erro ao persistir item." };
         errors.push({
           index, ...(externalId && { external_id: externalId }),
-          error: message,
+          error: knownError.message,
         });
         results.push({
           index, ...(externalId && { external_id: externalId }), status: "error",
-          reason: missingRepresentative ? "REPRESENTATIVE_NOT_FOUND" : "PERSISTENCE_ERROR",
-          message,
+          reason: knownError.reason,
+          message: knownError.message,
         });
       }
     }

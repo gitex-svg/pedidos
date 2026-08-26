@@ -7,6 +7,26 @@
 
 # Changelog
 
+## Fase 3 — Motor de preços
+
+- Tabelas `STANDARD`, `REPRESENTATIVE` e `CUSTOMER` sincronizadas pelo ERP,
+  usando exclusivamente identificadores externos.
+- Itens de preço sincronizados por tabela e `product_erp_id`, mantendo o padrão
+  de lotes, correlação, processamento parcial e proteção contra versões antigas.
+- Resolução autenticada na hierarquia CUSTOMER → REPRESENTATIVE → STANDARD,
+  derivando o representante do cliente e respeitando o escopo da sessão.
+- Vigência com limites inclusivos e referência opcional; ausência explícita com
+  `found=false` e ambiguidade explícita por HTTP `409`.
+- `unit_price` contratado como string decimal e persistido em `NUMERIC(18,6)`,
+  sem uso de `number` JavaScript, aceitando zeros à esquerda na entrada e com
+  saída fixa em seis casas.
+- Constraint de banco adicionada para rejeitar intervalo de vigência com início
+  posterior ao fim.
+- Razões estáveis adicionadas: `CUSTOMER_NOT_FOUND`, `PRODUCT_NOT_FOUND` e
+  `PRICE_TABLE_NOT_FOUND`.
+- Pedidos, itens, descontos, preço especial e integração de pedidos permanecem
+  fora do escopo.
+
 ## Fase 2 — Cadastros e sincronização ERP
 
 - Catálogos read-only na web para clientes, produtos, condições de pagamento e
@@ -21,8 +41,8 @@
 - Preservação do `user_id` do representante e resolução de clientes por
   `representative_erp_code`.
 - Logs de integração e rastreabilidade por `correlation_id`.
-- Documentação do contrato ERP e delimitação explícita do escopo futuro da
-  Fase 3.
+- Documentação do contrato ERP e delimitação do escopo então futuro do motor
+  de preços.
 
 ## Fase 1
 

@@ -14,6 +14,7 @@ tags:
   - name: admin
   - name: catalog
   - name: erp
+  - name: pricing
 paths:
   /healthz:
     get:
@@ -192,6 +193,54 @@ paths:
         - $ref: "#/components/parameters/Order"
       responses:
         "200": { description: Transportadoras paginadas, content: { application/json: { schema: { $ref: "#/components/schemas/CarrierPage" } } } }
+  /v1/pricing/resolve:
+    get:
+      operationId: resolvePrice
+      tags: [pricing]
+      summary: Resolve o preço vigente de um produto para um cliente
+      description: |
+        Aplica, nesta ordem, as origens CUSTOMER, REPRESENTATIVE e STANDARD.
+        A vigência é inclusiva nas duas extremidades. O representante é sempre
+        obtido do cliente; nenhum identificador de representante é aceito.
+        REPRESENTATIVE só pode consultar clientes do próprio vínculo e ADMIN
+        pode consultar qualquer cliente. Mais de uma tabela aplicável no mesmo
+        nível é erro explícito, nunca uma escolha arbitrária.
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - name: customerId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: productId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: referenceDate
+          in: query
+          description: Data/hora de referência; na ausência, usa a data/hora atual do servidor.
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Preço resolvido ou ausência explícita de preço
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceResolution"
+        "400":
+          description: Parâmetros inválidos
+          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+        "401":
+          description: Sessão ausente ou inválida
+          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+        "403":
+          description: Cliente fora do escopo do representante autenticado
+          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+        "404":
+          description: Cliente, produto ou representante associado não encontrado ou inativo
+          content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } }
+        "409":
+          description: Duas ou mais tabelas vigentes contêm o produto no mesmo nível da hierarquia
+          content: { application/json: { schema: { $ref: "#/components/schemas/AmbiguousPriceResponse" } } }
   /v1/erp/representatives/sync:
     post:
       operationId: syncRepresentatives
@@ -227,6 +276,46 @@ paths:
       security: [{ erpApiKey: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/CarrierSyncBatch" } } } }
       responses: { "200": { $ref: "#/components/responses/SyncResult" }, "207": { $ref: "#/components/responses/SyncResult" }, "400": { description: Lote inválido }, "401": { description: API key inválida } }
+  /v1/erp/price-tables/sync:
+    post:
+      operationId: syncPriceTables
+      tags: [erp]
+      summary: Sincroniza tabelas de preço por identificadores externos
+      description: |
+        Aceita somente códigos externos do ERP. STANDARD não recebe escopo;
+        REPRESENTATIVE usa representative_erp_code; CUSTOMER usa
+        customer_erp_code. UUIDs internos não fazem parte deste contrato.
+      security: [{ erpApiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PriceTableSyncBatch" }
+      responses:
+        "200": { $ref: "#/components/responses/SyncResult" }
+        "207": { $ref: "#/components/responses/SyncResult" }
+        "400": { description: Lote inválido, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "401": { description: API key ausente ou inválida, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+  /v1/erp/price-table-items/sync:
+    post:
+      operationId: syncPriceTableItems
+      tags: [erp]
+      summary: Sincroniza preços de produtos nas tabelas
+      description: |
+        A tabela e o produto são identificados exclusivamente por
+        price_table_erp_code e product_erp_id. unit_price é texto decimal para
+        preservar precisão; UUIDs internos não são aceitos.
+      security: [{ erpApiKey: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PriceTableItemSyncBatch" }
+      responses:
+        "200": { $ref: "#/components/responses/SyncResult" }
+        "207": { $ref: "#/components/responses/SyncResult" }
+        "400": { description: Lote inválido, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "401": { description: API key ausente ou inválida, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
 components:
   securitySchemes:
     sessionCookie: { type: apiKey, in: cookie, name: better-auth.session_token }
@@ -292,6 +381,63 @@ components:
       properties:
         error: { type: string }
       required: [error]
+    PriceType:
+      type: string
+      enum: [STANDARD, REPRESENTATIVE, CUSTOMER]
+    PriceOrigin:
+      type: string
+      enum: [CUSTOMER, REPRESENTATIVE, STANDARD]
+    UnitPriceInput:
+      type: string
+      description: Decimal exato, com 1 a 12 dígitos inteiros (zeros à esquerda permitidos) e de 1 a 6 casas decimais. Nunca enviar como JSON number; o servidor preserva a parte inteira e completa a fração para seis casas.
+      pattern: '^[0-9]{1,12}\.[0-9]{1,6}$'
+      examples: ["003.25", "999999999999.123456"]
+    UnitPriceOutput:
+      type: string
+      description: Decimal exato normalizado com exatamente 6 casas decimais.
+      pattern: '^[0-9]{1,12}\.[0-9]{6}$'
+      examples: ["3.250000"]
+    PriceResolutionFound:
+      type: object
+      additionalProperties: false
+      properties:
+        found: { type: boolean, const: true }
+        productId: { type: string, format: uuid }
+        customerId: { type: string, format: uuid }
+        representativeId: { type: string, format: uuid }
+        unitPrice: { $ref: "#/components/schemas/UnitPriceOutput" }
+        origin: { $ref: "#/components/schemas/PriceOrigin" }
+        priceTableId: { type: string, format: uuid }
+        priceTableErpCode: { type: string }
+      required: [found, productId, customerId, representativeId, unitPrice, origin, priceTableId, priceTableErpCode]
+    PriceResolutionNotFound:
+      type: object
+      description: Ausência de preço não é representada por zero.
+      additionalProperties: false
+      properties:
+        found: { type: boolean, const: false }
+        productId: { type: string, format: uuid }
+        customerId: { type: string, format: uuid }
+      required: [found, productId, customerId]
+    PriceResolution:
+      oneOf:
+        - $ref: "#/components/schemas/PriceResolutionFound"
+        - $ref: "#/components/schemas/PriceResolutionNotFound"
+      discriminator:
+        propertyName: found
+        mapping:
+          "true": "#/components/schemas/PriceResolutionFound"
+          "false": "#/components/schemas/PriceResolutionNotFound"
+    AmbiguousPriceResponse:
+      type: object
+      properties:
+        error: { type: string }
+        scope: { $ref: "#/components/schemas/PriceOrigin" }
+        priceTableIds:
+          type: array
+          minItems: 2
+          items: { type: string, format: uuid }
+      required: [error, scope, priceTableIds]
     PageMeta:
       type: object
       properties: { page: { type: integer }, pageSize: { type: integer }, totalItems: { type: integer }, totalPages: { type: integer } }
@@ -325,11 +471,54 @@ components:
     ProductSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_id: { type: string }, code: { type: string }, description: { type: string }, collection: { type: [string, "null"] }, packaging: { type: [string, "null"] }, width: { type: [string, "null"] }, color: { type: [string, "null"] }, group_code: { type: string, minLength: 2, maxLength: 2 }, type_code: { type: string, minLength: 2, maxLength: 2 }, product_code: { type: string, minLength: 4, maxLength: 4 }, reference_code: { type: string, minLength: 8, maxLength: 8 } }, required: [erp_id, code, description, group_code, type_code, product_code, reference_code] }] }
     PaymentTermSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_code: { type: string }, description: { type: string }, installments: { type: [integer, "null"] } }, required: [erp_code, description] }] }
     CarrierSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_code: { type: string }, name: { type: string }, tax_id: { type: [string, "null"] } }, required: [erp_code, name] }] }
+    PriceTableSyncItem:
+      allOf:
+        - $ref: "#/components/schemas/SyncBase"
+        - type: object
+          description: |
+            Escopo condicional: STANDARD não permite códigos de escopo;
+            REPRESENTATIVE exige somente representative_erp_code; CUSTOMER
+            exige somente customer_erp_code.
+          properties:
+            erp_code: { type: string }
+            name: { type: string }
+            price_type: { $ref: "#/components/schemas/PriceType" }
+            representative_erp_code: { type: string }
+            customer_erp_code: { type: string }
+            valid_from: { type: [string, "null"], format: date-time }
+            valid_until: { type: [string, "null"], format: date-time }
+          required: [erp_code, name, price_type, valid_from, valid_until]
+          oneOf:
+            - properties:
+                price_type: { const: STANDARD }
+              not:
+                anyOf:
+                  - required: [representative_erp_code]
+                  - required: [customer_erp_code]
+            - properties:
+                price_type: { const: REPRESENTATIVE }
+              required: [representative_erp_code]
+              not: { required: [customer_erp_code] }
+            - properties:
+                price_type: { const: CUSTOMER }
+              required: [customer_erp_code]
+              not: { required: [representative_erp_code] }
+    PriceTableItemSyncItem:
+      allOf:
+        - $ref: "#/components/schemas/SyncBase"
+        - type: object
+          properties:
+            price_table_erp_code: { type: string }
+            product_erp_id: { type: string }
+            unit_price: { $ref: "#/components/schemas/UnitPriceInput" }
+          required: [price_table_erp_code, product_erp_id, unit_price]
     RepresentativeSyncBatch: { type: object, properties: { correlation_id: { type: string, format: uuid }, items: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/RepresentativeSyncItem" } } }, required: [items] }
     CustomerSyncBatch: { type: object, properties: { correlation_id: { type: string, format: uuid }, items: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/CustomerSyncItem" } } }, required: [items] }
     ProductSyncBatch: { type: object, properties: { correlation_id: { type: string, format: uuid }, items: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/ProductSyncItem" } } }, required: [items] }
     PaymentTermSyncBatch: { type: object, properties: { correlation_id: { type: string, format: uuid }, items: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/PaymentTermSyncItem" } } }, required: [items] }
     CarrierSyncBatch: { type: object, properties: { correlation_id: { type: string, format: uuid }, items: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/CarrierSyncItem" } } }, required: [items] }
+    PriceTableSyncBatch: { type: object, properties: { correlation_id: { type: string, format: uuid }, items: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/PriceTableSyncItem" } } }, required: [items] }
+    PriceTableItemSyncBatch: { type: object, properties: { correlation_id: { type: string, format: uuid }, items: { type: array, maxItems: 500, items: { $ref: "#/components/schemas/PriceTableItemSyncItem" } } }, required: [items] }
     SyncResult:
       type: object
       properties:
@@ -347,8 +536,15 @@ components:
             properties:
               index: { type: integer }
               external_id: { type: string }
-              status: { type: string, enum: [created, updated, ignored, error] }
-              reason: { type: string, enum: [STALE_SOURCE_VERSION, REPRESENTATIVE_NOT_FOUND, VALIDATION_ERROR, PERSISTENCE_ERROR] }
+              status: { $ref: "#/components/schemas/SyncItemStatus" }
+              reason: { $ref: "#/components/schemas/SyncItemReason" }
               message: { type: string }
             required: [index, status]
       required: [correlation_id, received, created, updated, ignored, errors, item_errors, results]
+    SyncItemStatus:
+      type: string
+      enum: [created, updated, ignored, error]
+    SyncItemReason:
+      type: string
+      description: Razão estável e adequada para tratamento programático.
+      enum: [STALE_SOURCE_VERSION, REPRESENTATIVE_NOT_FOUND, CUSTOMER_NOT_FOUND, PRODUCT_NOT_FOUND, PRICE_TABLE_NOT_FOUND, VALIDATION_ERROR, PERSISTENCE_ERROR]
