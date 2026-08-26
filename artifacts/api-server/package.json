@@ -7,6 +7,8 @@
     "dev": "export NODE_ENV=development && pnpm run build && pnpm run start",
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
+    "migrate:production": "node --enable-source-maps ./dist/migrate.mjs",
+    "create-admin:production": "node --enable-source-maps ./dist/create-admin.mjs",
     "test": "tsx --test src/**/*.test.ts",
     "performance:phase6": "tsx src/performance/phase6-benchmark.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"

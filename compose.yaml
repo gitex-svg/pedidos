@@ -1,0 +1,151 @@
+name: pedidos-gitex
+
+services:
+  postgres:
+    image: postgres:17.6-bookworm
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Defina POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?Defina POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}
+      APP_DB_USER: ${APP_DB_USER:?Defina APP_DB_USER}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?Defina APP_DB_PASSWORD}
+      MIGRATION_DB_USER: ${MIGRATION_DB_USER:?Defina MIGRATION_DB_USER}
+      MIGRATION_DB_PASSWORD: ${MIGRATION_DB_PASSWORD:?Defina MIGRATION_DB_PASSWORD}
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init-app-role.sh:/docker-entrypoint-initdb.d/10-init-app-role.sh:ro
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    shm_size: 256mb
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  app:
+    image: ${APP_IMAGE:-pedidos-gitex:local}
+    build:
+      context: .
+      target: runtime
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24.13.0}
+        PNPM_VERSION: ${PNPM_VERSION:-10.26.1}
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      HOST: 0.0.0.0
+      DATABASE_URL: ${DATABASE_URL:?Defina DATABASE_URL com senha codificada para URL}
+      SESSION_SECRET: ${SESSION_SECRET:?Defina SESSION_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?Defina BETTER_AUTH_URL}
+      ERP_API_KEY: ${ERP_API_KEY:?Defina ERP_API_KEY}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      TRUST_PROXY_HOPS: "1"
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      DB_IDLE_TIMEOUT_MS: ${DB_IDLE_TIMEOUT_MS:-30000}
+      DB_CONNECT_TIMEOUT_MS: ${DB_CONNECT_TIMEOUT_MS:-5000}
+      DB_QUERY_TIMEOUT_MS: ${DB_QUERY_TIMEOUT_MS:-10000}
+      DB_STATEMENT_TIMEOUT_MS: ${DB_STATEMENT_TIMEOUT_MS:-10000}
+      DB_SSL_MODE: ${DB_SSL_MODE:-disable}
+    ports:
+      - "127.0.0.1:${APP_BIND_PORT:-8080}:8080"
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:8080/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  migration:
+    profiles: ["operations"]
+    image: ${APP_IMAGE:-pedidos-gitex:local}
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${MIGRATION_DATABASE_URL:?Defina MIGRATION_DATABASE_URL}
+      DB_POOL_MAX: "2"
+      DB_IDLE_TIMEOUT_MS: ${DB_IDLE_TIMEOUT_MS:-30000}
+      DB_CONNECT_TIMEOUT_MS: ${DB_CONNECT_TIMEOUT_MS:-5000}
+      DB_QUERY_TIMEOUT_MS: ${DB_QUERY_TIMEOUT_MS:-10000}
+      DB_STATEMENT_TIMEOUT_MS: ${DB_STATEMENT_TIMEOUT_MS:-10000}
+      DB_SSL_MODE: ${DB_SSL_MODE:-disable}
+    command: ["node", "--enable-source-maps", "/app/dist/migrate.mjs"]
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"
+
+  test:
+    profiles: ["test"]
+    image: pedidos-gitex:test-local
+    build:
+      context: .
+      target: build
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24.13.0}
+        PNPM_VERSION: ${PNPM_VERSION:-10.26.1}
+    environment:
+      NODE_ENV: test
+      PORT: "8080"
+      DATABASE_URL: ${MIGRATION_DATABASE_URL:?Defina MIGRATION_DATABASE_URL}
+      SESSION_SECRET: ${SESSION_SECRET:?Defina SESSION_SECRET}
+      ERP_API_KEY: ${ERP_API_KEY:?Defina ERP_API_KEY}
+      LOG_LEVEL: silent
+      DB_SSL_MODE: disable
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        pnpm --filter @workspace/db run migrate
+        pnpm --filter @workspace/api-server run test
+        pnpm --filter @workspace/pedidos-gitex run test
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+networks:
+  backend:
+    driver: bridge
+    internal: true
+
+volumes:
+  postgres_data:

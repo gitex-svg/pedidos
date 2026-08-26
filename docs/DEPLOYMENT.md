@@ -24,7 +24,8 @@ repositório, frontend, payload de cliente ou log:
 
 | Variável | Uso e requisito conhecido |
 | --- | --- |
-| `DATABASE_URL` | conexão PostgreSQL; obrigatória para o banco |
+| `DATABASE_URL` | conexão do papel limitado usado somente pelo runtime web |
+| `MIGRATION_DATABASE_URL` | conexão do papel de migration, fornecida somente ao serviço one-off |
 | `SESSION_SECRET` | obrigatória, mínimo de 32 caracteres; valor diferente em cada ambiente |
 | `BETTER_AUTH_URL` | origem pública exata; obrigatória quando `NODE_ENV=production` |
 | `ERP_API_KEY` | Bearer token exclusivo do servidor para as rotas `/api/v1/erp/...`; não expor |
@@ -40,9 +41,9 @@ cofre de secrets. A validação centralizada falha sem expor valores quando
 quando o secret de sessão tem menos de 32 caracteres, ou quando
 `BETTER_AUTH_URL` está ausente/inválida em produção.
 
-O repositório ignora artefatos de build, mas o `.gitignore` atual **não contém
-uma regra explícita para `.env`**. Não criar nem versionar arquivos `.env` com
-secrets; o responsável deve adicionar a proteção apropriada antes de usá-los.
+O repositório ignora `.env`, dumps, backups locais e material de chave privada,
+mantendo somente `.env.example`. Essa proteção não substitui a revisão do diff
+nem um cofre de secrets; nunca force a inclusão desses arquivos.
 
 ## Ciclo de vida da chave ERP
 
@@ -78,7 +79,6 @@ Use somente migrations versionadas em produção:
 pnpm run typecheck
 pnpm --filter @workspace/api-server run test
 pnpm run build
-pnpm --filter @workspace/db run migrate
 ```
 
 `pnpm --filter @workspace/db run push` é indicado pelo projeto apenas para
@@ -92,6 +92,18 @@ comando automatizado de detecção de drift.
 Há migrations manuais de Fase 5 (`0009_phase_5_erp_orders.sql`), seu checkpoint
 `0010_woozy_prima.sql` e `0011_wise_impossible_man.sql`; a sequência deve ser
 preservada.
+
+Para o deployment Compose em VPS, o procedimento concreto é
+`ENV_FILE=.env.production deploy/scripts/deploy.sh`. Ele exige checkout Git
+limpo, inicia PostgreSQL, provisiona/atualiza de forma idempotente os papéis e
+ACLs inclusive em volumes existentes, constrói a imagem, para a aplicação
+anterior, executa o serviço one-off `migration` com credencial distinta e então
+inicia a nova aplicação e verifica `/health` e `/ready`. Não execute o comando
+genérico de migration com a `DATABASE_URL` do runtime: em produção, use somente
+esse serviço operacional. O script não faz
+pull/push Git, não avalia o arquivo de ambiente como código shell e não valida
+VPS, DNS, TLS ou ERP remoto. O procedimento completo de host/Nginx é
+`VPS_DEPLOYMENT.md`.
 
 ## Sequência de release
 
@@ -141,6 +153,12 @@ o login e guarde a credencial conforme política organizacional. Produção não
 deve executar fixtures nem criar automaticamente usuários, representantes,
 catálogos, tabelas/preços ou pedidos demo. Cadastros de referência vêm do ERP;
 o primeiro ADMIN é a exceção administrativa explícita acima.
+
+No runtime Compose, injete `ADMIN_EMAIL` e `ADMIN_PASSWORD` no ambiente do
+processo e execute `docker compose --env-file .env.production run --rm -T
+--no-deps -e ADMIN_EMAIL -e ADMIN_PASSWORD app node --enable-source-maps
+/app/dist/create-admin.mjs`; use canal seguro para os valores, remova-os do
+ambiente depois e não os registre no histórico.
 
 ## Rollback
 

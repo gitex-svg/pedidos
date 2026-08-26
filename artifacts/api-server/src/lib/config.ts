@@ -8,6 +8,10 @@ export interface AppConfig {
   trustedOrigins: string[];
   logLevel: string;
   port?: number;
+  host: string;
+  trustProxyHops: number;
+  staticDir: string;
+  readinessTimeoutMs: number;
   production: boolean;
 }
 
@@ -39,17 +43,46 @@ export function loadConfig(
     port = Number(rawPort);
     if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid configuration: PORT");
   }
+  const host = env.HOST?.trim() || "0.0.0.0";
+  const trustProxyHops = nonNegativeInteger(env, "TRUST_PROXY_HOPS", 0, 10);
+  const staticDir = env.STATIC_DIR?.trim() || "public";
+  const readinessTimeoutMs = positiveInteger(env, "READINESS_TIMEOUT_MS", 2_000, 100, 10_000);
   const logLevel = env.LOG_LEVEL ?? "info";
   if (!logLevels.has(logLevel)) throw new Error("Invalid configuration: LOG_LEVEL");
   const trustedOrigins = [
     ...(betterAuthUrl ? [betterAuthUrl] : []),
     ...(env.REPLIT_DEV_DOMAIN ? [`https://${env.REPLIT_DEV_DOMAIN}`] : []),
   ];
-  return { databaseUrl, sessionSecret, betterAuthUrl, erpApiKey, trustedOrigins, logLevel, port, production };
+  return {
+    databaseUrl, sessionSecret, betterAuthUrl, erpApiKey, trustedOrigins, logLevel,
+    port, host, trustProxyHops, staticDir, readinessTimeoutMs, production,
+  };
 }
 
 function requiredFrom(env: NodeJS.ProcessEnv, name: string): string {
   const value = env[name]?.trim();
   if (!value) throw new Error(`Missing required configuration: ${name}`);
+  return value;
+}
+
+function nonNegativeInteger(env: NodeJS.ProcessEnv, name: string, defaultValue: number, maximum: number): number {
+  const raw = env[name]?.trim();
+  if (!raw) return defaultValue;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0 || value > maximum) throw new Error(`Invalid configuration: ${name}`);
+  return value;
+}
+
+function positiveInteger(
+  env: NodeJS.ProcessEnv,
+  name: string,
+  defaultValue: number,
+  minimum: number,
+  maximum: number,
+): number {
+  const raw = env[name]?.trim();
+  if (!raw) return defaultValue;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) throw new Error(`Invalid configuration: ${name}`);
   return value;
 }

@@ -8,7 +8,8 @@ restrito). Itens pendentes impedem a declaração de pronto para produção.
 - [ ] Ambiente PRODUCTION separado de DEVELOPMENT e HOMOLOGATION.
 - [ ] Banco de produção configurado, com acesso mínimo.
 - [ ] Backup: proprietário, frequência, retenção, local e criptografia
-  aprovados e evidenciados.
+  aprovados e evidenciados; `deploy/scripts/backup-postgres.sh` agendado e cópia
+  fora da VPS confirmada.
 - [ ] Restore drill executado ou exceção de risco formalmente aprovada.
 - [ ] Secrets configurados fora do repositório; `SESSION_SECRET` forte e única.
 - [ ] `ERP_API_KEY` exclusiva de produção configurada; procedimento de revogação
@@ -23,6 +24,8 @@ restrito). Itens pendentes impedem a declaração de pronto para produção.
   frontend 1/1,
   typecheck, builds API/web e OpenAPI codegen aprovados em 2026-08-26.
 - [ ] A mesma revisão foi identificada e aprovada para implantar.
+- [ ] Checkout limpo implantado com `ENV_FILE=.env.production
+  deploy/scripts/deploy.sh`; o resultado de `/health` e `/ready` foi registrado.
 - [ ] Migrations versionadas aplicadas; não foi usado `push`/`push-force`.
 - [ ] Drift verificado pelo operador e ausente, ou exceção aprovada.
 - [ ] Plano de rollback, contatos e backup pré-migration registrados.
@@ -39,6 +42,8 @@ restrito). Itens pendentes impedem a declaração de pronto para produção.
 - [x] `GET /health` e `GET /ready` com consulta PostgreSQL foram implementados e
   validados tecnicamente.
 - [ ] `/health` e `/ready` aprovados no deployment de produção.
+- [ ] DNS, Nginx same-origin, certificado TLS e renovação Certbot validados no
+  host/domínio reais; não inferir isso dos arquivos ou scripts do repositório.
 - [ ] Smoke test: login, dashboard, consulta de cliente, produto e pedidos,
   sem criar pedido comercial.
 - [ ] Isolamento entre representantes aprovado.
@@ -52,3 +57,7 @@ restrito). Itens pendentes impedem a declaração de pronto para produção.
   configurados no recurso existente da plataforma, ou lacuna aprovada.
 - [ ] Responsividade mobile/tablet/desktop e navegadores foram executados e
   evidenciados; não presumir aprovação.
+
+Consulte `VPS_DEPLOYMENT.md` para os comandos de host e
+`restore-postgres-isolated.sh` para o drill. A documentação e os scripts não
+realizam validação remota, ERP real ou cópia offsite por conta própria.

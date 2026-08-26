@@ -2,10 +2,12 @@
 
 ## Estado conhecido e responsabilidades
 
-O banco é PostgreSQL e as migrations Drizzle são versionadas. Esta documentação
-não encontrou evidência de backup, ponto de restauração, retenção, criptografia
-ou restore configurados na plataforma. Logo, nenhum backup ou restore é
-declarado como testado.
+O banco é PostgreSQL e as migrations Drizzle são versionadas. A Fase 6.1
+adicionou scripts locais de backup e restore e validou tecnicamente um dump
+custom-format com checksum, restaurado e consultado em banco Docker isolado em
+2026-08-26. Isso não comprova agendamento, retenção, criptografia, cópia fora do
+host nem restore na VPS; essas capacidades permanecem pendentes de configuração
+e evidência no ambiente real.
 
 Antes de produção, nomear:
 
@@ -28,8 +30,18 @@ rotação de chaves e descarte seguro conforme a política aplicável.
 
 1. Verificar a política aprovada, capacidade disponível, sucesso do último job e
    ausência de alerta pendente.
-2. Executar o mecanismo PostgreSQL/plataforma aprovado, identificado por
-   `<BACKUP_MECHANISM>`, sem imprimir `DATABASE_URL` ou credenciais.
+2. No deployment Compose VPS, executar o mecanismo concreto sem imprimir
+   `DATABASE_URL` ou credenciais:
+
+   ```bash
+   BACKUP_DIR=/var/backups/pedidos-gitex BACKUP_RETENTION_DAYS=14 \
+     ENV_FILE=.env.production deploy/scripts/backup-postgres.sh
+   ```
+
+   Ele usa `pg_dump` custom-format dentro do container PostgreSQL, `umask 077`,
+   arquivo temporário/rename atômico, checksum SHA-256 e retenção configurável.
+   Não envia cópia para fora do host: o proprietário deve operar e evidenciar a
+   transferência criptografada para o destino aprovado.
 3. Registrar identificador do backup, horário UTC, tamanho/resultado, revisão
    de schema, ambiente, retenção e local no registro operacional restrito.
 4. Proteger o artefato com o método de criptografia aprovado e restringir acesso
@@ -50,6 +62,13 @@ Nunca restaurar primeiro sobre produção. Para um drill ou incidente:
    acesso público/ERP produtivo.
 4. Restaurar usando o mecanismo documentado da plataforma. Não colocar URI,
    senha ou chave em terminal gravado, ticket ou logs.
+
+   Para o Compose VPS, o mecanismo é
+   `deploy/scripts/restore-postgres-isolated.sh BACKUP.dump
+   NOME_DO_BANCO --confirm RESTORE-NOME_DO_BANCO`. Ele verifica o formato (e o
+   checksum adjacente quando existe), aceita somente identificador PostgreSQL
+   seguro, exige banco existente/vazio e recusa o banco configurado como
+   produção. Não cria, limpa ou sobrescreve banco.
 5. Conferir histórico de migrations contra a revisão restaurada; não usar
    `drizzle-kit push`/`push-force` para ajustar o banco restaurado. Aplicar
    apenas migrations versionadas necessárias e aprovadas.
@@ -76,5 +95,10 @@ aplicação não reenvia pedidos automaticamente.
 Periodicidade do drill: `<RESTORE_DRILL_FREQUENCY_APPROVED>`. O resultado só é
 “aprovado” se o procedimento acima for executado em homologação/isolado e houver
 evidência registrada de restore, migrations, acesso da aplicação e consultas
-seguras. **Status atual: pendente; nenhum drill de restore foi executado por
-esta documentação.**
+seguras. **Status atual:** mecanismo aprovado em ambiente Docker local
+descartável; drill operacional na VPS, destino externo e política aprovada
+permanecem pendentes.
+
+`VPS_DEPLOYMENT.md` explica permissões, destino fora do host e a criação do alvo
+isolado. A existência desses scripts não é validação de backup, restore,
+armazenamento externo ou ambiente remoto.

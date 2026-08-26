@@ -136,4 +136,13 @@ Defina `BETTER_AUTH_URL` com a origem pública exata da aplicação, por exemplo
 `https://pedidos.exemplo.com.br`. A API interrompe a inicialização em produção
 quando essa configuração estiver ausente, evitando aceitar origens genéricas.
 
+Para VPS Ubuntu com Docker Compose, Nginx same-origin, migrations explícitas e
+operação de backup/restore, siga `docs/VPS_DEPLOYMENT.md`. Os comandos
+operacionais são `deploy/scripts/deploy.sh`,
+`deploy/scripts/backup-postgres.sh` e
+`deploy/scripts/restore-postgres-isolated.sh`; eles usam
+`docker compose --env-file`, não devem receber arquivo de ambiente via `source`.
+DNS, TLS, VPS, backup fora do host e ERP real continuam validações externas,
+nunca presumidas por esses scripts.
+
 Consulte `docs/` para arquitetura, banco, regras e contratos ERP das Fases 2 a 5.
