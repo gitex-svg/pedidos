@@ -40,6 +40,10 @@ is_non_negative_integer() {
 is_non_negative_integer "$SSH_PORT" || die "SSH_PORT deve ser um inteiro"
 [ "$SSH_PORT" -ge 1 ] && [ "$SSH_PORT" -le 65535 ] ||
   die "SSH_PORT deve estar entre 1 e 65535"
+case $ENABLE_UFW in
+  0|1) ;;
+  *) die "ENABLE_UFW deve ser 0 ou 1" ;;
+esac
 case $DEPLOY_USER in
   [a-z_]*)
     case $DEPLOY_USER in *[!a-z0-9_-]*) die "DEPLOY_USER possui caracteres inválidos" ;; esac ;;
@@ -48,6 +52,8 @@ esac
 case $APP_DIR:$BACKUP_DIR in
   *[!A-Za-z0-9_./:-]*) die "APP_DIR/BACKUP_DIR possuem caracteres inválidos" ;;
 esac
+case $APP_DIR in /*) ;; *) die "APP_DIR deve ser um caminho absoluto" ;; esac
+case $BACKUP_DIR in /*) ;; *) die "BACKUP_DIR deve ser um caminho absoluto" ;; esac
 
 log "atualizando pacotes do Ubuntu"
 apt-get update
@@ -63,6 +69,7 @@ apt-get install -y \
   jq \
   nginx \
   openssh-client \
+  openssh-server \
   python3-certbot-nginx \
   software-properties-common \
   ufw \
@@ -150,6 +157,7 @@ fi
 
 systemctl enable --now nginx
 systemctl enable --now fail2ban
+systemctl enable --now ssh
 systemctl enable --now apt-daily.timer apt-daily-upgrade.timer
 
 docker --version >/dev/null

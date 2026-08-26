@@ -26,13 +26,14 @@ bash deploy/scripts/bootstrap-ubuntu-24.04.sh
 ```
 
 O script instala Docker Engine com Compose plugin, Nginx, Certbot, Git, UFW,
-Fail2ban, `unattended-upgrades`, ferramentas TLS e utilitários operacionais;
+Fail2ban, OpenSSH Server, `unattended-upgrades`, ferramentas TLS e utilitários operacionais;
 habilita os serviços, prepara os diretórios e configura rotação de logs do
 Docker apenas quando não existe configuração prévia. Ele recusa outros
 sistemas/versões do Ubuntu, preserva um `daemon.json` existente e não clona
 Git, cria secrets, altera SSH, configura DNS, emite certificado, executa
 migrations ou inicia a aplicação. A associação ao grupo `docker` deve ser
-tratada como acesso administrativo.
+tratada como acesso administrativo. Confirme `SSH_PORT` antes de executar com
+`ENABLE_UFW=1`, pois o script habilita o firewall após liberar essa porta.
 
 Instale a chave pública SSH do operador em `~deploy/.ssh/authorized_keys`, com
 permissões `700` no diretório e `600` no arquivo. Em `sshd_config`, desabilite
