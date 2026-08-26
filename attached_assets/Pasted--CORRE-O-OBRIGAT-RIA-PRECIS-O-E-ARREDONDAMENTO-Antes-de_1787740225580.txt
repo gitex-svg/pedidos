@@ -1,0 +1,254 @@
+# CORREÇÃO OBRIGATÓRIA — PRECISÃO E ARREDONDAMENTO
+
+Antes de executar a Fase 4, substituir a definição anterior de precisão dos totais pelas regras abaixo.
+
+## 1. PREÇO UNITÁRIO
+
+Os valores unitários devem continuar preservando até 6 casas decimais.
+
+Utilizar:
+
+`suggested_unit_price NUMERIC(18,6)`
+
+`effective_unit_price NUMERIC(18,6)`
+
+`special_unit_price NUMERIC(18,6)`
+
+`net_unit_price NUMERIC(18,6)`
+
+Isso é necessário porque os produtos podem possuir preços unitários fracionados com mais de duas casas decimais.
+
+Exemplo:
+
+`2.994300`
+
+---
+
+## 2. QUANTIDADE
+
+Manter:
+
+`quantity NUMERIC(18,4)`
+
+---
+
+## 3. DESCONTOS
+
+Manter:
+
+`discount1 NUMERIC(7,4)`
+
+`discount2 NUMERIC(7,4)`
+
+`discount3 NUMERIC(7,4)`
+
+`discount4 NUMERIC(7,4)`
+
+Os cálculos intermediários dos descontos devem preservar precisão suficiente antes do cálculo do total do item.
+
+---
+
+## 4. TOTAIS DOS ITENS
+
+Os totais monetários dos itens devem possuir obrigatoriamente 2 casas decimais.
+
+Utilizar:
+
+`gross_total NUMERIC(20,2)`
+
+`net_total NUMERIC(20,2)`
+
+O cálculo deve preservar a precisão completa durante as operações intermediárias e arredondar somente o resultado monetário final do item para 2 casas decimais.
+
+Exemplo:
+
+Preço unitário:
+
+`2.994300`
+
+Quantidade:
+
+`3`
+
+Cálculo:
+
+`2.994300 × 3 = 8.982900`
+
+Total do item armazenado:
+
+`8.98`
+
+---
+
+## 5. TOTAIS DO PEDIDO
+
+Na tabela `orders`, utilizar:
+
+`gross_total NUMERIC(20,2)`
+
+`net_total NUMERIC(20,2)`
+
+Os totais do pedido devem ser calculados através da SOMA DOS TOTAIS DOS ITENS JÁ ARREDONDADOS PARA DUAS CASAS.
+
+Exemplo:
+
+Item 1:
+
+`8.982900 → 8.98`
+
+Item 2:
+
+`5.001000 → 5.00`
+
+Total do pedido:
+
+`8.98 + 5.00 = 13.98`
+
+Não recalcular o total do pedido utilizando valores internos não arredondados dos itens.
+
+A regra é:
+
+`order.gross_total = SUM(order_items.gross_total)`
+
+`order.net_total = SUM(order_items.net_total)`
+
+---
+
+## 6. ITEM NORMAL COM DESCONTOS
+
+Para item normal:
+
+1. obter `effective_unit_price` com até 6 casas;
+2. aplicar os descontos D1 → D2 → D3 → D4 preservando precisão;
+3. obter `net_unit_price` com até 6 casas;
+4. multiplicar pela quantidade;
+5. arredondar o TOTAL DO ITEM para 2 casas.
+
+Exemplo conceitual:
+
+`net_unit_price = 2.994300`
+
+`quantity = 3`
+
+`net_total = ROUND(2.994300 × 3, 2)`
+
+Resultado:
+
+`8.98`
+
+---
+
+## 7. ITEM COM PREÇO ESPECIAL
+
+Para preço especial:
+
+`effective_unit_price = special_unit_price`
+
+`net_unit_price = special_unit_price`
+
+Os descontos não são aplicados.
+
+Depois:
+
+`net_total = ROUND(special_unit_price × quantity, 2)`
+
+`gross_total = ROUND(special_unit_price × quantity, 2)`
+
+---
+
+## 8. POLÍTICA DE ARREDONDAMENTO
+
+Centralizar a política de arredondamento financeiro.
+
+Não utilizar `Math.round()` ou operações comuns de ponto flutuante JavaScript para valores monetários críticos.
+
+Utilizar a mesma estratégia decimal já adotada na Fase 3.
+
+Definir explicitamente e documentar o modo de arredondamento utilizado.
+
+Aplicar a regra consistentemente no backend.
+
+O frontend poderá apresentar prévias, mas o servidor sempre deverá recalcular e determinar o valor definitivo.
+
+---
+
+## 9. SNAPSHOT
+
+Os valores congelados no item devem preservar:
+
+### Até 6 casas:
+
+* suggested_unit_price
+* effective_unit_price
+* special_unit_price
+* net_unit_price
+
+### Exatamente 2 casas monetárias:
+
+* gross_total
+* net_total
+
+---
+
+## 10. TESTES ADICIONAIS
+
+Adicionar testes específicos para arredondamento.
+
+### Exemplo 1
+
+Preço:
+
+`2.994300`
+
+Quantidade:
+
+`3`
+
+Esperado:
+
+`8.98`
+
+### Exemplo 2
+
+Preço:
+
+`1.667000`
+
+Quantidade:
+
+`3`
+
+Esperado:
+
+`5.00`
+
+### Total do pedido
+
+Itens:
+
+`8.98`
+
+`5.00`
+
+Esperado:
+
+`13.98`
+
+Confirmar que o pedido utiliza:
+
+`SUM(totais dos itens arredondados)`
+
+e não:
+
+`ROUND(SUM(valores intermediários não arredondados), 2)`
+
+Criar também testes combinando:
+
+* preço com 6 casas;
+* quatro descontos;
+* quantidade;
+* arredondamento do item;
+* soma dos itens;
+* preço especial.
+
+Essa regra substitui qualquer definição anterior da Fase 4 que utilize `NUMERIC(20,6)` para totais de item ou pedido.
