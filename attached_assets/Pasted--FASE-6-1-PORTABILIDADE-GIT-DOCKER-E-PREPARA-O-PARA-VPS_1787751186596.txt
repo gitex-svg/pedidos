@@ -1,0 +1,1450 @@
+# FASE 6.1 — PORTABILIDADE, GIT, DOCKER E PREPARAÇÃO PARA VPS LOCAWEB
+
+A Fase 6 está concluída ou em processo final de validação.
+
+Agora preparar o projeto para:
+
+* versionamento definitivo em Git;
+* publicação em repositório privado;
+* execução fora do Replit;
+* deploy em VPS Linux hospedada na Locaweb;
+* banco PostgreSQL próprio;
+* Nginx como reverse proxy;
+* HTTPS;
+* backup;
+* atualização segura;
+* rollback.
+
+IMPORTANTE:
+
+Esta fase NÃO deve criar novas funcionalidades comerciais.
+
+O objetivo é garantir que o sistema rode de forma independente do ambiente Replit.
+
+---
+
+# 1. OBJETIVO PRINCIPAL
+
+Ao final desta fase, deve ser possível executar o sistema em uma VPS Linux limpa utilizando somente:
+
+* Git;
+* Docker;
+* Docker Compose;
+* arquivos do repositório;
+* Secrets configurados no servidor.
+
+O sistema não pode depender de:
+
+* banco Replit;
+* Secrets Replit;
+* runtime proprietário do Replit;
+* URLs internas do Replit;
+* ferramentas exclusivas do ambiente de desenvolvimento.
+
+---
+
+# 2. ARQUITETURA DE PRODUÇÃO
+
+Preparar para a seguinte arquitetura:
+
+Internet
+↓
+HTTPS
+↓
+Nginx
+↓
+Aplicação Pedidos Gitex
+↓
+PostgreSQL
+
+A aplicação e o PostgreSQL deverão preferencialmente executar em containers Docker.
+
+O PostgreSQL NÃO deverá ficar diretamente exposto para a internet.
+
+Somente os serviços necessários devem possuir portas públicas.
+
+---
+
+# 3. SISTEMA OPERACIONAL ALVO
+
+Assumir como alvo:
+
+Ubuntu Server LTS
+
+em VPS Linux Locaweb.
+
+Evitar dependências específicas de Windows/IIS.
+
+Documentar versões mínimas/recomendadas de:
+
+* Docker;
+* Docker Compose;
+* Git.
+
+---
+
+# 4. DOCKERFILE DA APLICAÇÃO
+
+Criar um `Dockerfile` de produção.
+
+Requisitos:
+
+* utilizar imagem oficial estável;
+* build multi-stage quando apropriado;
+* instalar apenas dependências necessárias;
+* gerar build da aplicação;
+* executar com usuário não-root quando possível;
+* expor somente porta interna necessária;
+* não copiar Secrets para a imagem;
+* não incluir arquivos desnecessários;
+* não incluir cache, testes ou artefatos de desenvolvimento desnecessários.
+
+Documentar o processo de build.
+
+---
+
+# 5. DOCKER COMPOSE
+
+Criar:
+
+`docker-compose.yml`
+
+ou:
+
+`compose.yaml`
+
+Preparar pelo menos os serviços:
+
+* app;
+* postgres.
+
+Opcionalmente:
+
+* nginx
+
+se fizer sentido manter Nginx também em container.
+
+Preferência:
+
+arquitetura simples e fácil de administrar.
+
+---
+
+# 6. POSTGRESQL
+
+Configurar container PostgreSQL com:
+
+* banco dedicado;
+* usuário dedicado;
+* senha via variável de ambiente;
+* volume persistente.
+
+Exemplo conceitual:
+
+`postgres_data`
+
+O volume deve sobreviver a:
+
+* restart;
+* rebuild;
+* atualização da aplicação.
+
+Nunca armazenar dados PostgreSQL dentro do filesystem temporário do container.
+
+---
+
+# 7. REDE INTERNA
+
+Criar rede Docker privada.
+
+Aplicação deve acessar PostgreSQL usando nome do serviço.
+
+Exemplo conceitual:
+
+`postgres:5432`
+
+Não usar `localhost` entre containers.
+
+Não publicar porta `5432` para a internet por padrão.
+
+---
+
+# 8. VARIÁVEIS DE AMBIENTE
+
+Criar:
+
+`.env.example`
+
+Sem valores sensíveis reais.
+
+Incluir todas as variáveis necessárias.
+
+Por exemplo:
+
+* NODE_ENV
+* DATABASE_URL
+* SESSION_SECRET
+* BETTER_AUTH_URL
+* ERP_API_KEY
+* PORT
+
+Se houver outras, incluir.
+
+Adicionar comentários explicativos quando útil.
+
+---
+
+# 9. ARQUIVOS SENSÍVEIS
+
+Garantir que estejam no `.gitignore`:
+
+* `.env`
+* `.env.local`
+* `.env.production`
+* `.env.*.local`
+
+e quaisquer arquivos contendo Secrets.
+
+Nunca versionar:
+
+* API Key;
+* senha;
+* connection string real;
+* SESSION_SECRET;
+* certificados privados.
+
+---
+
+# 10. .DOCKERIGNORE
+
+Criar:
+
+`.dockerignore`
+
+Excluir pelo menos:
+
+* `.git`
+* node_modules
+* logs
+* coverage
+* arquivos de teste desnecessários
+* documentação pesada não necessária em runtime
+* artefatos temporários
+* `.env*` sensíveis
+
+Garantir que o build continue funcionando.
+
+---
+
+# 11. GITIGNORE
+
+Revisar `.gitignore`.
+
+Garantir exclusão de:
+
+* node_modules;
+* builds locais;
+* caches;
+* logs;
+* Secrets;
+* arquivos IDE temporários;
+* relatórios de testes;
+* dumps de banco;
+* backups.
+
+Não ignorar migrations.
+
+As migrations devem ser versionadas.
+
+---
+
+# 12. PORTABILIDADE
+
+Auditar o código procurando dependências específicas do Replit.
+
+Pesquisar por:
+
+* URLs Replit;
+* variáveis Replit;
+* paths Replit;
+* serviços proprietários;
+* referências a banco Replit;
+* configuração exclusiva de preview.
+
+Substituir por configuração genérica via ambiente.
+
+---
+
+# 13. HOST E PORTA
+
+A aplicação deve escutar de forma apropriada para container.
+
+Preferencialmente:
+
+`0.0.0.0`
+
+e porta configurável por variável.
+
+Não fixar localhost apenas.
+
+---
+
+# 14. HEALTHCHECK DO CONTAINER
+
+Configurar healthcheck do serviço app utilizando:
+
+`/health`
+
+ou endpoint equivalente.
+
+Configurar healthcheck do PostgreSQL.
+
+Docker Compose deve conseguir identificar serviços saudáveis.
+
+---
+
+# 15. DEPENDÊNCIA DO BANCO
+
+Aplicação não deve assumir que PostgreSQL está disponível instantaneamente.
+
+Implementar estratégia adequada:
+
+* healthcheck;
+* retry de conexão;
+* startup controlado.
+
+Evitar loop infinito silencioso.
+
+---
+
+# 16. MIGRATIONS
+
+Definir como migrations serão executadas em produção.
+
+Preferência:
+
+comando explícito.
+
+Exemplo:
+
+`docker compose run --rm app pnpm run migrate`
+
+ou equivalente.
+
+Não executar migrations destrutivas automaticamente em todo restart sem controle.
+
+Documentar processo.
+
+---
+
+# 17. PRIMEIRO DEPLOY
+
+Criar procedimento documentado para primeira instalação.
+
+Exemplo conceitual:
+
+1. clonar repositório;
+2. criar `.env.production`;
+3. configurar Secrets;
+4. subir PostgreSQL;
+5. executar migrations;
+6. subir aplicação;
+7. validar health;
+8. criar ADMIN;
+9. configurar Nginx;
+10. configurar HTTPS;
+11. executar smoke test.
+
+---
+
+# 18. NGINX
+
+Criar arquivo de exemplo:
+
+`deploy/nginx/pedidos-gitex.conf`
+
+Configurar reverse proxy.
+
+Exemplo conceitual:
+
+`pedidos.gitex.com.br`
+
+→ aplicação interna.
+
+Configurar headers adequados para:
+
+* Host;
+* X-Real-IP;
+* X-Forwarded-For;
+* X-Forwarded-Proto.
+
+Compatibilizar com Better Auth e aplicação.
+
+---
+
+# 19. HTTPS
+
+Preparar documentação para HTTPS utilizando solução padrão, como:
+
+Let's Encrypt / Certbot
+
+ou solução equivalente disponível na VPS.
+
+Configurar:
+
+* porta 80 para redirect;
+* porta 443 HTTPS;
+* renovação automática.
+
+Não armazenar chave privada SSL no Git.
+
+---
+
+# 20. DOMÍNIO
+
+Documentar configuração DNS.
+
+Exemplo:
+
+`pedidos.gitex.com.br`
+
+Registro:
+
+A
+
+apontando para IP público da VPS.
+
+Não depender de domínio Replit.
+
+---
+
+# 21. BETTER_AUTH_URL
+
+Produção deverá utilizar URL pública definitiva.
+
+Exemplo:
+
+`https://pedidos.gitex.com.br`
+
+Garantir que Better Auth não permaneça apontando para Replit.
+
+---
+
+# 22. CORS E ORIGENS
+
+Atualizar configuração para produção.
+
+Permitir somente origem real da aplicação.
+
+Evitar:
+
+`*`
+
+quando cookies estiverem envolvidos.
+
+Documentar desenvolvimento, homologação e produção.
+
+---
+
+# 23. TRUST PROXY
+
+Como a aplicação ficará atrás do Nginx, revisar configuração do Express.
+
+Se necessário:
+
+`trust proxy`
+
+deve ser configurado corretamente.
+
+Isso é importante para:
+
+* HTTPS;
+* cookies Secure;
+* IP real;
+* rate limiting.
+
+Não confiar indiscriminadamente em proxies externos.
+
+---
+
+# 24. FIREWALL
+
+Criar documentação para firewall da VPS.
+
+Permitir publicamente apenas o necessário:
+
+* SSH;
+* HTTP;
+* HTTPS.
+
+Não expor PostgreSQL.
+
+Exemplo:
+
+22
+80
+443
+
+Se possível, recomendar alteração/restrição adicional do SSH sem exigir mudança arriscada automática.
+
+---
+
+# 25. SSH
+
+Documentar acesso por chave SSH.
+
+Preferir chave ao invés de senha.
+
+Não incluir chave privada no projeto.
+
+Criar procedimento para:
+
+* adicionar chave;
+* testar;
+* remover acesso antigo.
+
+---
+
+# 26. USUÁRIO DE DEPLOY
+
+Recomendar ou preparar operação com usuário Linux próprio.
+
+Evitar usar root para tarefas diárias.
+
+Usuário deve ter apenas permissões necessárias.
+
+Docker poderá exigir grupo específico.
+
+Documentar.
+
+---
+
+# 27. GITHUB / GIT
+
+Preparar projeto para repositório Git privado.
+
+Documentar:
+
+```bash
+git init
+git add .
+git commit
+git remote add origin ...
+git push
+```
+
+Se repositório já existir, preservar histórico.
+
+Não sobrescrever Git existente.
+
+---
+
+# 28. BRANCHES
+
+Definir estratégia simples.
+
+Preferência inicial:
+
+`main`
+
+= produção estável.
+
+Opcionalmente:
+
+`develop`
+
+= desenvolvimento/homologação.
+
+Não criar fluxo Git complexo sem necessidade.
+
+Documentar regra.
+
+---
+
+# 29. TAGS DE VERSÃO
+
+Recomendar tags para releases.
+
+Exemplo:
+
+`v1.0.0`
+
+Primeira produção.
+
+Documentar processo:
+
+commit
+→ tag
+→ push.
+
+Isso facilita rollback.
+
+---
+
+# 30. DEPLOY MANUAL INICIAL
+
+Não implementar CI/CD obrigatório nesta fase.
+
+Primeiro criar deploy manual reproduzível.
+
+Fluxo:
+
+VPS
+→ git pull
+→ docker compose build
+→ migrations
+→ docker compose up -d
+→ health check.
+
+Documentar.
+
+---
+
+# 31. SCRIPT DE DEPLOY
+
+Criar script opcional seguro:
+
+`scripts/deploy-production.sh`
+
+Deve:
+
+* parar em caso de erro;
+* atualizar código;
+* buildar;
+* executar migrations;
+* subir serviços;
+* validar health.
+
+Não inserir Secrets no script.
+
+Não executar ações destrutivas.
+
+---
+
+# 32. ROLLBACK
+
+Criar procedimento de rollback.
+
+Exemplo:
+
+1. identificar tag anterior;
+2. checkout da versão;
+3. rebuild;
+4. subir aplicação anterior.
+
+ATENÇÃO:
+
+rollback de código não significa automaticamente rollback de banco.
+
+Documentar como migrations afetam rollback.
+
+Evitar migrations incompatíveis sem plano.
+
+---
+
+# 33. ZERO OU BAIXO DOWNTIME
+
+Não exigir arquitetura avançada.
+
+Mas documentar comportamento durante deploy.
+
+Se houver pequeno downtime aceitável, informar.
+
+Não implementar Kubernetes ou orquestração complexa.
+
+---
+
+# 34. BACKUP POSTGRESQL
+
+Criar estratégia de backup.
+
+Usar:
+
+`pg_dump`
+
+ou ferramenta equivalente.
+
+Criar script:
+
+`scripts/backup-postgres.sh`
+
+Requisitos:
+
+* gerar backup com timestamp;
+* não expor senha no log;
+* permitir retenção;
+* retornar erro se falhar.
+
+---
+
+# 35. RETENÇÃO DE BACKUP
+
+Definir sugestão inicial.
+
+Exemplo:
+
+* 7 backups diários;
+* 4 semanais;
+* backups mensais conforme necessidade.
+
+Não apagar automaticamente sem regra clara.
+
+Documentar.
+
+---
+
+# 36. BACKUP FORA DA VPS
+
+Documentar que o backup idealmente deve ter cópia fora da VPS.
+
+Não considerar volume Docker como backup.
+
+Não considerar dump armazenado somente na mesma VPS como proteção completa.
+
+Preparar estrutura para upload futuro para:
+
+* storage externo;
+* outro servidor;
+* serviço de backup.
+
+Não contratar serviço automaticamente.
+
+---
+
+# 37. RESTORE
+
+Criar script ou procedimento:
+
+`scripts/restore-postgres.sh`
+
+Deve exigir confirmação clara.
+
+Preferencialmente não sobrescrever produção silenciosamente.
+
+Documentar restauração em ambiente separado.
+
+---
+
+# 38. TESTE DE RESTORE
+
+Criar procedimento para:
+
+* gerar dump;
+* criar banco temporário;
+* restaurar dump;
+* validar tabelas;
+* validar pedido histórico;
+* validar login ou dados essenciais.
+
+Não marcar restore como testado se não foi executado.
+
+---
+
+# 39. LOGS DO DOCKER
+
+Documentar acesso:
+
+`docker compose logs`
+
+Configurar rotação para evitar que logs consumam o disco indefinidamente.
+
+Utilizar logging driver e limites apropriados, se aplicável.
+
+---
+
+# 40. MONITORAMENTO DE DISCO
+
+Documentar necessidade de acompanhar:
+
+* disco;
+* volume PostgreSQL;
+* backups;
+* logs.
+
+Banco cheio por falta de espaço não pode ser ignorado.
+
+---
+
+# 41. RESTART AUTOMÁTICO
+
+Configurar containers com política adequada.
+
+Exemplo:
+
+`restart: unless-stopped`
+
+ou equivalente.
+
+Não usar configuração que cause restart infinito ocultando falha grave.
+
+Health deve continuar disponível.
+
+---
+
+# 42. TIMEZONE
+
+Revisar timezone da aplicação e banco.
+
+Armazenar timestamps de forma consistente.
+
+Preferir UTC internamente.
+
+Exibir horário local conforme necessidade.
+
+Não quebrar `source_updated_at` e integrações existentes.
+
+---
+
+# 43. LOCALE
+
+Preservar interface:
+
+`pt-BR`
+
+Moeda:
+
+BRL.
+
+Não alterar precisão financeira.
+
+---
+
+# 44. PRECISÃO FINANCEIRA
+
+Não modificar:
+
+* unitário: 6 casas;
+* quantidade: 4;
+* descontos: 4;
+* totais: 2;
+* ROUND_HALF_UP;
+* soma dos itens arredondados.
+
+Executar testes após containerização.
+
+---
+
+# 45. TESTES DENTRO DO CONTAINER
+
+Validar que:
+
+* build funciona;
+* aplicação inicia;
+* migrations funcionam;
+* testes críticos passam em ambiente equivalente ao container.
+
+Evitar cenário em que funciona apenas dentro do Replit.
+
+---
+
+# 46. TESTE DE PORTABILIDADE LOCAL
+
+Antes de considerar concluído, simular uma instalação limpa.
+
+Idealmente:
+
+1. parar dependências locais;
+2. remover containers antigos;
+3. remover volumes de teste;
+4. subir somente via Docker Compose;
+5. aplicar migrations;
+6. criar ADMIN;
+7. validar login;
+8. sincronizar dados de teste;
+9. criar pedido;
+10. consultar ERP API.
+
+Usar ambiente de teste, nunca destruir dados reais.
+
+---
+
+# 47. TESTE SEM REPLIT
+
+Confirmar explicitamente que o projeto sobe sem:
+
+* Replit database;
+* Replit Secrets;
+* Replit URL;
+* Replit Agent;
+* runtime Replit.
+
+Listar quaisquer dependências restantes.
+
+---
+
+# 48. CONFIGURAÇÃO DO POSTGRESQL
+
+Não permitir conexão sem senha.
+
+Criar usuário específico.
+
+Não utilizar superuser para conexão normal da aplicação se puder evitar.
+
+Documentar.
+
+---
+
+# 49. POOL DE CONEXÕES
+
+Revisar pool PostgreSQL.
+
+Configurar valores razoáveis para VPS.
+
+Não abrir conexões ilimitadas.
+
+Documentar variável/configuração.
+
+---
+
+# 50. LIMITES DE RECURSOS
+
+Se apropriado, permitir definição de limites Docker.
+
+Não configurar limites arbitrariamente baixos.
+
+Documentar requisitos mínimos estimados para:
+
+* RAM;
+* CPU;
+* disco.
+
+Não inventar capacidade sem medir.
+
+---
+
+# 51. REQUISITOS DA VPS
+
+Após build e teste, informar recomendação mínima e recomendada de:
+
+* vCPU;
+* RAM;
+* SSD;
+* sistema operacional.
+
+Basear em medições quando possível.
+
+Se ainda não houver carga real, deixar claro que é estimativa.
+
+---
+
+# 52. PORTAS
+
+Documentar:
+
+Publicamente:
+
+* 80
+* 443
+* SSH
+
+Internamente:
+
+* app
+* PostgreSQL
+
+Não publicar porta de aplicação diretamente se Nginx estiver na frente.
+
+---
+
+# 53. ADMIN DE PRODUÇÃO
+
+Preservar comando seguro já existente.
+
+Documentar execução no container.
+
+Exemplo conceitual:
+
+`docker compose exec app ...create-admin`
+
+Nunca criar credencial padrão.
+
+---
+
+# 54. PRIMEIRA SINCRONIZAÇÃO ERP
+
+Documentar ordem recomendada após instalação:
+
+1. representatives;
+2. customers;
+3. products;
+4. payment terms;
+5. carriers;
+6. price tables;
+7. price table items.
+
+Depois:
+
+pedidos.
+
+---
+
+# 55. HOMOLOGAÇÃO NA VPS
+
+Criar roteiro específico:
+
+`docs/VPS_HOMOLOGATION.md`
+
+Validar:
+
+* DNS;
+* HTTPS;
+* login;
+* sessão;
+* cliente;
+* produto;
+* preço;
+* pedido;
+* integração ERP;
+* status.
+
+---
+
+# 56. SECURITY CHECK NA VPS
+
+Documentar:
+
+* firewall;
+* portas;
+* usuário;
+* SSH;
+* HTTPS;
+* Secrets;
+* banco privado;
+* logs.
+
+Não automatizar alterações arriscadas sem confirmação.
+
+---
+
+# 57. ATUALIZAÇÃO FUTURA
+
+Documentar fluxo:
+
+1. desenvolvimento;
+2. testes;
+3. commit;
+4. push;
+5. tag;
+6. VPS pull;
+7. backup;
+8. build;
+9. migration;
+10. deploy;
+11. health;
+12. smoke test.
+
+---
+
+# 58. NÃO ALTERAR REGRAS DE NEGÓCIO
+
+A containerização não pode alterar:
+
+* autenticação;
+* isolamento;
+* preços;
+* descontos;
+* snapshots;
+* status;
+* ERP API;
+* precisão.
+
+Se um teste falhar após containerização, corrigir a portabilidade, não a regra comercial.
+
+---
+
+# 59. ARQUIVOS ESPERADOS
+
+Ao final avaliar/criar, conforme necessário:
+
+* Dockerfile
+* docker-compose.yml ou compose.yaml
+* .dockerignore
+* .env.example
+* deploy/nginx/pedidos-gitex.conf
+* scripts/deploy-production.sh
+* scripts/backup-postgres.sh
+* scripts/restore-postgres.sh
+* docs/DEPLOYMENT.md
+* docs/DISASTER_RECOVERY.md
+* docs/VPS_HOMOLOGATION.md
+
+Preservar os documentos já existentes.
+
+---
+
+# 60. DOCUMENTAÇÃO — DEPLOYMENT
+
+`docs/DEPLOYMENT.md` deve conter comandos reais e completos para:
+
+## Preparação da VPS
+
+* atualização;
+* Git;
+* Docker;
+* Docker Compose;
+* clone.
+
+## Configuração
+
+* `.env.production`;
+* Secrets.
+
+## Banco
+
+* start;
+* migrations;
+* ADMIN.
+
+## Aplicação
+
+* build;
+* start.
+
+## Nginx
+
+* instalação;
+* configuração;
+* ativação.
+
+## SSL
+
+* configuração.
+
+## Validação
+
+* health;
+* ready;
+* smoke test.
+
+---
+
+# 61. DOCUMENTAÇÃO — ROLLBACK
+
+Incluir em DEPLOYMENT ou documento próprio:
+
+* rollback de código;
+* impacto das migrations;
+* quando restore de banco seria necessário;
+* como validar a versão anterior.
+
+---
+
+# 62. DOCUMENTAÇÃO — BACKUP
+
+Documentar:
+
+* backup manual;
+* backup agendado;
+* retenção;
+* restore;
+* validação.
+
+Incluir exemplos de cron apenas como sugestão segura.
+
+---
+
+# 63. README
+
+Atualizar README com seção:
+
+## Production Deployment
+
+Apontando para:
+
+`docs/DEPLOYMENT.md`
+
+Não transformar README inteiro em manual operacional.
+
+---
+
+# 64. OPENAPI
+
+Não alterar contratos funcionais sem necessidade.
+
+Apenas garantir que documentação/API funcione normalmente fora do Replit.
+
+---
+
+# 65. GIT DIFF
+
+Antes de finalizar:
+
+* verificar arquivos alterados;
+* verificar arquivos sensíveis;
+* executar `git diff --check`.
+
+Garantir que nenhum Secret foi adicionado.
+
+---
+
+# 66. BUILD
+
+Executar build dentro do fluxo Docker.
+
+Validar:
+
+* API;
+* frontend;
+* aplicação completa.
+
+---
+
+# 67. TESTES
+
+Executar toda suíte existente.
+
+Depois executar testes adicionais de portabilidade.
+
+Nenhum teste anteriormente aprovado deve deixar de passar.
+
+---
+
+# 68. SMOKE TEST DOCKER
+
+Executar pelo menos:
+
+1. `/health`;
+2. `/ready`;
+3. login;
+4. dashboard;
+5. produtos;
+6. clientes;
+7. PricingService;
+8. pedidos;
+9. ERP API com API Key de teste.
+
+---
+
+# 69. TESTE DE RECRIAÇÃO
+
+Em ambiente seguro:
+
+`docker compose down`
+
+Depois:
+
+`docker compose up -d`
+
+Confirmar persistência PostgreSQL.
+
+Depois testar novamente.
+
+Não utilizar `-v` em ambiente com dados que devam ser preservados.
+
+---
+
+# 70. TESTE DE REBUILD
+
+Executar rebuild da aplicação sem apagar banco.
+
+Confirmar:
+
+* PostgreSQL preservado;
+* usuários preservados;
+* pedidos preservados.
+
+---
+
+# 71. PRODUÇÃO NÃO É REPLIT
+
+No relatório final responder explicitamente:
+
+**O projeto depende do Replit para rodar?**
+
+Resposta esperada, se tudo estiver correto:
+
+`Não.`
+
+Listar qualquer exceção, se existir.
+
+---
+
+# 72. SEGURANÇA DO REPOSITÓRIO
+
+Verificar se o repositório está pronto para ser privado.
+
+Não incluir:
+
+* dump;
+* backup;
+* dados de cliente;
+* credenciais;
+* `.env.production`;
+* chave SSL;
+* chaves SSH.
+
+---
+
+# 73. NÃO FAZER PUSH AUTOMATICAMENTE
+
+Nesta fase preparar o projeto.
+
+Não executar push para repositório externo sem autorização explícita.
+
+Não apagar histórico Git existente.
+
+---
+
+# 74. NÃO ALTERAR VPS REAL
+
+Se não houver acesso real à VPS durante esta tarefa:
+
+não fingir que instalou.
+
+Preparar arquivos e documentação.
+
+Classificar como:
+
+`Pronto para deploy na VPS`
+
+e não:
+
+`Deploy realizado`.
+
+---
+
+# 75. CRITÉRIO DE CONCLUSÃO
+
+A Fase 6.1 somente estará concluída quando:
+
+* projeto containerizado;
+* PostgreSQL persistente;
+* migrations reproduzíveis;
+* Secrets externos;
+* Nginx preparado;
+* HTTPS documentado;
+* backup preparado;
+* restore documentado;
+* deploy documentado;
+* rollback documentado;
+* testes aprovados;
+* instalação limpa simulada;
+* nenhuma dependência obrigatória do Replit.
+
+---
+
+# 76. RELATÓRIO FINAL
+
+Ao finalizar apresentar:
+
+## 1. Portabilidade
+
+Informe dependências removidas do Replit.
+
+## 2. Docker
+
+Explique:
+
+* imagens;
+* serviços;
+* redes;
+* volumes;
+* healthchecks.
+
+## 3. PostgreSQL
+
+Explique persistência, usuário e conexão.
+
+## 4. Secrets
+
+Liste variáveis necessárias sem mostrar valores.
+
+## 5. Git
+
+Informe arquivos ignorados e estado para publicação.
+
+## 6. Nginx
+
+Explique reverse proxy.
+
+## 7. HTTPS
+
+Explique procedimento.
+
+## 8. Backup
+
+Explique scripts e estratégia.
+
+## 9. Restore
+
+Informe se foi realmente testado.
+
+## 10. Deploy
+
+Mostre o fluxo completo.
+
+## 11. Rollback
+
+Explique procedimento.
+
+## 12. Testes
+
+Informe:
+
+* total;
+* aprovados;
+* reprovados;
+* testes Docker.
+
+## 13. Build
+
+Informe resultados.
+
+## 14. Persistência
+
+Informe resultado de restart/rebuild.
+
+## 15. Dependência do Replit
+
+Responder claramente:
+
+`SIM` ou `NÃO`
+
+e justificar.
+
+## 16. Arquivos criados
+
+Listar arquivos Docker, scripts e documentação.
+
+## 17. Pendências
+
+Informar tudo que depende de:
+
+* VPS real;
+* domínio;
+* DNS;
+* certificado;
+* credenciais de produção;
+* ERP real.
+
+## 18. Classificação final
+
+Escolher uma:
+
+**NÃO PRONTO PARA DEPLOY**
+
+ou
+
+**PRONTO PARA DEPLOY NA VPS**
+
+ou
+
+**DEPLOY NA VPS VALIDADO**
+
+Somente utilizar a última opção se realmente tiver sido executado na VPS.
+
+---
+
+# 77. ENCERRAMENTO
+
+Se todos os testes locais/containerizados passarem e não existir dependência obrigatória do Replit, concluir:
+
+**Fase 6.1 concluída. Projeto portável e pronto para deploy em VPS Linux.**
+
+Depois PARE.
+
+Não fazer push para Git.
+
+Não acessar ou alterar VPS real.
+
+Não iniciar novas funcionalidades.
