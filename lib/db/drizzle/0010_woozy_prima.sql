@@ -1,0 +1,2 @@
+-- Schema snapshot checkpoint for the manually curated Phase 5 migration 0009.
+-- All executable changes and data backfills are intentionally kept in 0009.

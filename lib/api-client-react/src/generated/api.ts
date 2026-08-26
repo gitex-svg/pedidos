@@ -28,6 +28,12 @@ import type {
   CustomerPage,
   CustomerSyncBatch,
   DashboardSummary,
+  ErpOrderConfirmInput,
+  ErpOrderDetail,
+  ErpOrderError,
+  ErpOrderMutationResult,
+  ErpOrderStatusInput,
+  ErpSubmittedOrderPage,
   ErrorResponse,
   HealthStatus,
   ListCarriersParams,
@@ -35,6 +41,7 @@ import type {
   ListOrdersParams,
   ListPaymentTermsParams,
   ListProductsParams,
+  ListSubmittedErpOrdersParams,
   LoginInput,
   OrderDetail,
   OrderInput,
@@ -1953,5 +1960,313 @@ export const useSyncPriceTableItems = <TError = ErrorType<ErrorResponse>,
         TContext
       > => {
       return useMutation(getSyncPriceTableItemsMutationOptions(options));
+    }
+
+export const getListSubmittedErpOrdersUrl = (params?: ListSubmittedErpOrdersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/erp/orders/submitted?${stringifiedParams}` : `/api/v1/erp/orders/submitted`
+}
+
+/**
+ * @summary Lista deterministicamente pedidos submetidos ainda não confirmados
+ */
+export const listSubmittedErpOrders = async (params?: ListSubmittedErpOrdersParams, options?: Parameters<typeof customFetch>[1]): Promise<ErpSubmittedOrderPage> => {
+
+  return customFetch<ErpSubmittedOrderPage>(getListSubmittedErpOrdersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSubmittedErpOrdersQueryKey = (params?: ListSubmittedErpOrdersParams,) => {
+    return [
+    `/api/v1/erp/orders/submitted`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListSubmittedErpOrdersQueryOptions = <TData = Awaited<ReturnType<typeof listSubmittedErpOrders>>, TError = ErrorType<ErrorResponse>>(params?: ListSubmittedErpOrdersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSubmittedErpOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSubmittedErpOrdersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSubmittedErpOrders>>> = ({ signal }) => listSubmittedErpOrders(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSubmittedErpOrders>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSubmittedErpOrdersQueryResult = NonNullable<Awaited<ReturnType<typeof listSubmittedErpOrders>>>
+export type ListSubmittedErpOrdersQueryError = ErrorType<ErrorResponse>
+
+
+/**
+ * @summary Lista deterministicamente pedidos submetidos ainda não confirmados
+ */
+
+export function useListSubmittedErpOrders<TData = Awaited<ReturnType<typeof listSubmittedErpOrders>>, TError = ErrorType<ErrorResponse>>(
+ params?: ListSubmittedErpOrdersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSubmittedErpOrders>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSubmittedErpOrdersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetErpOrderUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/erp/orders/${id}`
+}
+
+/**
+ * Não recalcula preços, descontos ou totais e não confirma a importação.
+ * @summary Obtém o snapshot persistido de um pedido submetido
+ */
+export const getErpOrder = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<ErpOrderDetail> => {
+
+  return customFetch<ErpOrderDetail>(getGetErpOrderUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetErpOrderQueryKey = (id: string,) => {
+    return [
+    `/api/v1/erp/orders/${id}`
+    ] as const;
+    }
+
+
+export const getGetErpOrderQueryOptions = <TData = Awaited<ReturnType<typeof getErpOrder>>, TError = ErrorType<ErrorResponse | ErpOrderError>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getErpOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetErpOrderQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getErpOrder>>> = ({ signal }) => getErpOrder(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getErpOrder>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetErpOrderQueryResult = NonNullable<Awaited<ReturnType<typeof getErpOrder>>>
+export type GetErpOrderQueryError = ErrorType<ErrorResponse | ErpOrderError>
+
+
+/**
+ * @summary Obtém o snapshot persistido de um pedido submetido
+ */
+
+export function useGetErpOrder<TData = Awaited<ReturnType<typeof getErpOrder>>, TError = ErrorType<ErrorResponse | ErpOrderError>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getErpOrder>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetErpOrderQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getConfirmErpOrderUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/erp/orders/${id}/confirm`
+}
+
+/**
+ * Repetições com a mesma identidade são idempotentes; um número ERP ou identificador de importação conflitante retorna 409.
+ * @summary Confirma transacionalmente a importação no ERP
+ */
+export const confirmErpOrder = async (id: string,
+    erpOrderConfirmInput: ErpOrderConfirmInput, options?: Parameters<typeof customFetch>[1]): Promise<ErpOrderMutationResult> => {
+
+  return customFetch<ErpOrderMutationResult>(getConfirmErpOrderUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(erpOrderConfirmInput)
+  }
+);}
+
+
+
+
+
+export const getConfirmErpOrderMutationOptions = <TError = ErrorType<ErrorResponse | ErpOrderError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmErpOrder>>, TError,{id: string;data: BodyType<ErpOrderConfirmInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmErpOrder>>, TError,{id: string;data: BodyType<ErpOrderConfirmInput>}, TContext> => {
+
+const mutationKey = ['confirmErpOrder'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmErpOrder>>, {id: string;data: BodyType<ErpOrderConfirmInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  confirmErpOrder(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmErpOrderMutationResult = NonNullable<Awaited<ReturnType<typeof confirmErpOrder>>>
+    export type ConfirmErpOrderMutationBody = BodyType<ErpOrderConfirmInput>
+    export type ConfirmErpOrderMutationError = ErrorType<ErrorResponse | ErpOrderError>
+
+    /**
+ * @summary Confirma transacionalmente a importação no ERP
+ */
+export const useConfirmErpOrder = <TError = ErrorType<ErrorResponse | ErpOrderError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmErpOrder>>, TError,{id: string;data: BodyType<ErpOrderConfirmInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmErpOrder>>,
+        TError,
+        {id: string;data: BodyType<ErpOrderConfirmInput>},
+        TContext
+      > => {
+      return useMutation(getConfirmErpOrderMutationOptions(options));
+    }
+
+export const getUpdateErpOrderStatusUrl = (id: string,) => {
+
+
+
+
+  return `/api/v1/erp/orders/${id}/status`
+}
+
+/**
+ * Timestamps iguais ou anteriores são ignorados. O mesmo status não duplica histórico.
+ * @summary Atualiza o status comercial do ERP
+ */
+export const updateErpOrderStatus = async (id: string,
+    erpOrderStatusInput: ErpOrderStatusInput, options?: Parameters<typeof customFetch>[1]): Promise<ErpOrderMutationResult> => {
+
+  return customFetch<ErpOrderMutationResult>(getUpdateErpOrderStatusUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(erpOrderStatusInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateErpOrderStatusMutationOptions = <TError = ErrorType<ErrorResponse | ErpOrderError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateErpOrderStatus>>, TError,{id: string;data: BodyType<ErpOrderStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateErpOrderStatus>>, TError,{id: string;data: BodyType<ErpOrderStatusInput>}, TContext> => {
+
+const mutationKey = ['updateErpOrderStatus'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateErpOrderStatus>>, {id: string;data: BodyType<ErpOrderStatusInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateErpOrderStatus(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateErpOrderStatusMutationResult = NonNullable<Awaited<ReturnType<typeof updateErpOrderStatus>>>
+    export type UpdateErpOrderStatusMutationBody = BodyType<ErpOrderStatusInput>
+    export type UpdateErpOrderStatusMutationError = ErrorType<ErrorResponse | ErpOrderError>
+
+    /**
+ * @summary Atualiza o status comercial do ERP
+ */
+export const useUpdateErpOrderStatus = <TError = ErrorType<ErrorResponse | ErpOrderError>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateErpOrderStatus>>, TError,{id: string;data: BodyType<ErpOrderStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateErpOrderStatus>>,
+        TError,
+        {id: string;data: BodyType<ErpOrderStatusInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateErpOrderStatusMutationOptions(options));
     }
 

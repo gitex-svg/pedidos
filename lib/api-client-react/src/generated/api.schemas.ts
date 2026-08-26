@@ -124,6 +124,7 @@ export interface OrderItem {
   productCode: string;
   referenceCode: string;
   productCodeSnapshot: string;
+  productErpIdSnapshot: string;
   descriptionSnapshot: string;
   /** @nullable */
   packagingSnapshot: string | null;
@@ -202,9 +203,13 @@ export interface Order {
   /** @nullable */
   erpOrderNumber: string | null;
   /** @nullable */
+  erpImportId: string | null;
+  /** @nullable */
   submittedAt: string | null;
   /** @nullable */
   erpSyncedAt: string | null;
+  /** @nullable */
+  erpLastStatusAt: string | null;
   createdByUserId: string;
   version: number;
   createdAt: string;
@@ -241,6 +246,39 @@ export const OrderDetailErpStatus = {
   REPROVADO: 'REPROVADO',
 } as const;
 
+export type OrderStatusHistoryStatusType = typeof OrderStatusHistoryStatusType[keyof typeof OrderStatusHistoryStatusType];
+
+
+export const OrderStatusHistoryStatusType = {
+  INTERNAL: 'INTERNAL',
+  ERP: 'ERP',
+} as const;
+
+export type OrderStatusHistorySource = typeof OrderStatusHistorySource[keyof typeof OrderStatusHistorySource];
+
+
+export const OrderStatusHistorySource = {
+  SYSTEM: 'SYSTEM',
+  REPRESENTATIVE: 'REPRESENTATIVE',
+  ERP: 'ERP',
+  ADMIN: 'ADMIN',
+} as const;
+
+export interface OrderStatusHistory {
+  id: string;
+  orderId: string;
+  statusType: OrderStatusHistoryStatusType;
+  /** @nullable */
+  previousStatus: string | null;
+  newStatus: string;
+  source: OrderStatusHistorySource;
+  /** @nullable */
+  correlationId: string | null;
+  /** @nullable */
+  sourceUpdatedAt: string | null;
+  createdAt: string;
+}
+
 export interface OrderDetail {
   id: string;
   internalNumber: number;
@@ -263,9 +301,13 @@ export interface OrderDetail {
   /** @nullable */
   erpOrderNumber: string | null;
   /** @nullable */
+  erpImportId: string | null;
+  /** @nullable */
   submittedAt: string | null;
   /** @nullable */
   erpSyncedAt: string | null;
+  /** @nullable */
+  erpLastStatusAt: string | null;
   createdByUserId: string;
   version: number;
   createdAt: string;
@@ -279,6 +321,7 @@ export interface OrderDetail {
   /** @nullable */
   carrierErpCode: string | null;
   items: OrderItem[];
+  statusHistory: OrderStatusHistory[];
 }
 
 export interface OrderPage {
@@ -287,6 +330,175 @@ export interface OrderPage {
   totalItems: number;
   totalPages: number;
   items: Order[];
+}
+
+export type ErpOrderStatus = typeof ErpOrderStatus[keyof typeof ErpOrderStatus];
+
+
+export const ErpOrderStatus = {
+  EM_ANALISE: 'EM_ANALISE',
+  APROVADO: 'APROVADO',
+  FECHADO: 'FECHADO',
+  FATURADO: 'FATURADO',
+  REPROVADO: 'REPROVADO',
+} as const;
+
+export interface ErpSubmittedOrder {
+  id: string;
+  internal_number: number;
+  submitted_at: string;
+  representative_erp_code: string;
+  customer_erp_code: string;
+  gross_total: MoneyTotal;
+  net_total: MoneyTotal;
+}
+
+export interface ErpSubmittedOrderPage {
+  items: ErpSubmittedOrder[];
+  page: number;
+  page_size: number;
+  total_items: number;
+  total_pages: number;
+}
+
+export type ErpOrderItemEffectivePriceOrigin = typeof ErpOrderItemEffectivePriceOrigin[keyof typeof ErpOrderItemEffectivePriceOrigin];
+
+
+export const ErpOrderItemEffectivePriceOrigin = {
+  CUSTOMER: 'CUSTOMER',
+  REPRESENTATIVE: 'REPRESENTATIVE',
+  STANDARD: 'STANDARD',
+  SPECIAL: 'SPECIAL',
+} as const;
+
+export interface ErpOrderItem {
+  id: string;
+  product_erp_id: string;
+  group_code: string;
+  type_code: string;
+  product_code: string;
+  reference_code: string;
+  product_code_snapshot: string;
+  description_snapshot: string;
+  /** @nullable */
+  packaging_snapshot: string | null;
+  /** @nullable */
+  width_snapshot: string | null;
+  /** @nullable */
+  color_snapshot: string | null;
+  quantity: string;
+  suggested_unit_price: UnitPriceOutput;
+  suggested_price_origin: PriceOrigin;
+  /** @nullable */
+  suggested_price_table_erp_code: string | null;
+  effective_unit_price: UnitPriceOutput;
+  effective_price_origin: ErpOrderItemEffectivePriceOrigin;
+  is_special_price: boolean;
+  special_unit_price: UnitPriceOutput | null;
+  discount1: DecimalDiscount;
+  discount2: DecimalDiscount;
+  discount3: DecimalDiscount;
+  discount4: DecimalDiscount;
+  discounts_applied: boolean;
+  net_unit_price: UnitPriceOutput;
+  gross_total: MoneyTotal;
+  net_total: MoneyTotal;
+}
+
+export interface ErpOrderDetail {
+  id: string;
+  internal_number: number;
+  created_at: string;
+  submitted_at: string;
+  representative_erp_code: string;
+  customer_erp_code: string;
+  payment_term_erp_code: string;
+  /** @nullable */
+  carrier_erp_code: string | null;
+  /** @nullable */
+  notes: string | null;
+  discount1: DecimalDiscount;
+  discount2: DecimalDiscount;
+  discount3: DecimalDiscount;
+  discount4: DecimalDiscount;
+  gross_total: MoneyTotal;
+  net_total: MoneyTotal;
+  /** @nullable */
+  erp_order_number: string | null;
+  /** @nullable */
+  erp_import_id: string | null;
+  /** @nullable */
+  erp_synced_at: string | null;
+  erp_status: ErpOrderStatus | null;
+  items: ErpOrderItem[];
+}
+
+export interface ErpOrderConfirmInput {
+  /**
+     * @minLength 1
+     * @maxLength 128
+     */
+  erp_order_number: string;
+  /**
+     * Identificador idempotente opcional e globalmente único.
+     * @minLength 1
+     * @maxLength 128
+     */
+  erp_import_id?: string;
+  status?: ErpOrderStatus;
+  source_updated_at: string;
+  correlation_id?: string;
+}
+
+export interface ErpOrderStatusInput {
+  status: ErpOrderStatus;
+  source_updated_at: string;
+  correlation_id?: string;
+}
+
+export type ErpOrderMutationResultResult = typeof ErpOrderMutationResultResult[keyof typeof ErpOrderMutationResultResult];
+
+
+export const ErpOrderMutationResultResult = {
+  updated: 'updated',
+  ignored: 'ignored',
+} as const;
+
+export type ErpOrderMutationResultReason = typeof ErpOrderMutationResultReason[keyof typeof ErpOrderMutationResultReason];
+
+
+export const ErpOrderMutationResultReason = {
+  ALREADY_CONFIRMED: 'ALREADY_CONFIRMED',
+  STALE_SOURCE_VERSION: 'STALE_SOURCE_VERSION',
+  STATUS_UNCHANGED: 'STATUS_UNCHANGED',
+} as const;
+
+export interface ErpOrderMutationResult {
+  correlation_id: string;
+  result: ErpOrderMutationResultResult;
+  reason?: ErpOrderMutationResultReason;
+  erp_order_number?: string;
+  /** @nullable */
+  erp_import_id?: string | null;
+  erp_synced_at?: string;
+  erp_status: ErpOrderStatus | null;
+}
+
+export type ErpOrderErrorCode = typeof ErpOrderErrorCode[keyof typeof ErpOrderErrorCode];
+
+
+export const ErpOrderErrorCode = {
+  ORDER_NOT_FOUND: 'ORDER_NOT_FOUND',
+  ORDER_NOT_SUBMITTED: 'ORDER_NOT_SUBMITTED',
+  ERP_ORDER_NUMBER_CONFLICT: 'ERP_ORDER_NUMBER_CONFLICT',
+  ERP_IMPORT_ID_CONFLICT: 'ERP_IMPORT_ID_CONFLICT',
+  PERSISTENCE_ERROR: 'PERSISTENCE_ERROR',
+} as const;
+
+export interface ErpOrderError {
+  error: string;
+  code: ErpOrderErrorCode;
+  correlation_id: string;
 }
 
 export interface LoginInput {
@@ -879,4 +1091,16 @@ export const ListOrdersStatus = {
   DRAFT: 'DRAFT',
   SUBMITTED: 'SUBMITTED',
 } as const;
+
+export type ListSubmittedErpOrdersParams = {
+/**
+ * @minimum 1
+ */
+page?: number;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+pageSize?: number;
+};
 

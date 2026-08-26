@@ -35,6 +35,18 @@ export const erpStatusEnum = pgEnum("erp_status", [
   "REPROVADO",
 ]);
 
+export const orderStatusTypeEnum = pgEnum("order_status_type", [
+  "INTERNAL",
+  "ERP",
+]);
+
+export const orderStatusSourceEnum = pgEnum("order_status_source", [
+  "SYSTEM",
+  "REPRESENTATIVE",
+  "ERP",
+  "ADMIN",
+]);
+
 export const priceOriginEnum = pgEnum("price_origin", [
   "CUSTOMER",
   "REPRESENTATIVE",
@@ -281,6 +293,10 @@ export const orders = pgTable("orders", {
   customerId: uuid("customer_id").notNull().references(() => customers.id),
   paymentTermId: uuid("payment_term_id").notNull().references(() => paymentTerms.id),
   carrierId: uuid("carrier_id").references(() => carriers.id),
+  representativeErpCodeSnapshot: varchar("representative_erp_code_snapshot", { length: 64 }),
+  customerErpCodeSnapshot: varchar("customer_erp_code_snapshot", { length: 64 }),
+  paymentTermErpCodeSnapshot: varchar("payment_term_erp_code_snapshot", { length: 64 }),
+  carrierErpCodeSnapshot: varchar("carrier_erp_code_snapshot", { length: 64 }),
   notes: text("notes"),
   discount1: numeric("discount1", { precision: 7, scale: 4, mode: "string" }).notNull().default("0"),
   discount2: numeric("discount2", { precision: 7, scale: 4, mode: "string" }).notNull().default("0"),
@@ -291,17 +307,22 @@ export const orders = pgTable("orders", {
   internalStatus: internalOrderStatusEnum("internal_status").notNull().default("DRAFT"),
   erpStatus: erpStatusEnum("erp_status"),
   erpOrderNumber: varchar("erp_order_number", { length: 128 }),
+  erpImportId: varchar("erp_import_id", { length: 128 }),
   submittedAt: timestamp("submitted_at", { withTimezone: true }),
   erpSyncedAt: timestamp("erp_synced_at", { withTimezone: true }),
+  erpLastStatusAt: timestamp("erp_last_status_at", { withTimezone: true }),
   createdByUserId: uuid("created_by_user_id").notNull().references(() => users.id),
   version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
   uniqueIndex("orders_internal_number_unique").on(table.internalNumber),
+  uniqueIndex("orders_erp_import_id_unique").on(table.erpImportId),
+  index("orders_submitted_queue_idx").on(table.internalStatus, table.erpSyncedAt, table.submittedAt, table.id),
   index("orders_representative_created_idx").on(table.representativeId, table.createdAt),
   index("orders_customer_created_idx").on(table.customerId, table.createdAt),
   index("orders_internal_status_created_idx").on(table.internalStatus, table.createdAt),
+  check("orders_submitted_header_snapshots_check", sql`${table.internalStatus} = 'DRAFT' or (${table.representativeErpCodeSnapshot} is not null and ${table.customerErpCodeSnapshot} is not null and ${table.paymentTermErpCodeSnapshot} is not null)`),
   check("orders_discount_range_check", sql`${table.discount1} between 0 and 100 and ${table.discount2} between 0 and 100 and ${table.discount3} between 0 and 100 and ${table.discount4} between 0 and 100`),
 ]);
 
@@ -314,6 +335,7 @@ export const orderItems = pgTable("order_items", {
   productCode: varchar("product_code", { length: 4 }).notNull(),
   referenceCode: varchar("reference_code", { length: 8 }).notNull(),
   productCodeSnapshot: varchar("product_code_snapshot", { length: 64 }).notNull(),
+  productErpIdSnapshot: varchar("product_erp_id_snapshot", { length: 128 }).notNull(),
   descriptionSnapshot: text("description_snapshot").notNull(),
   packagingSnapshot: varchar("packaging_snapshot", { length: 120 }),
   widthSnapshot: varchar("width_snapshot", { length: 64 }),
@@ -345,6 +367,24 @@ export const orderItems = pgTable("order_items", {
   check("order_items_quantity_positive_check", sql`${table.quantity} > 0`),
   check("order_items_special_check", sql`(${table.isSpecialPrice} = false and ${table.specialUnitPrice} is null) or (${table.isSpecialPrice} = true and ${table.specialUnitPrice} > 0)`),
   check("order_items_discount_range_check", sql`${table.discount1} between 0 and 100 and ${table.discount2} between 0 and 100 and ${table.discount3} between 0 and 100 and ${table.discount4} between 0 and 100`),
+]);
+
+export const orderStatusHistory = pgTable("order_status_history", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orderId: uuid("order_id").notNull().references(() => orders.id, {
+    onDelete: "cascade",
+    onUpdate: "no action",
+  }),
+  statusType: orderStatusTypeEnum("status_type").notNull(),
+  previousStatus: varchar("previous_status", { length: 32 }),
+  newStatus: varchar("new_status", { length: 32 }).notNull(),
+  source: orderStatusSourceEnum("source").notNull(),
+  correlationId: uuid("correlation_id"),
+  sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  index("order_status_history_order_created_idx").on(table.orderId, table.createdAt, table.id),
+  index("order_status_history_correlation_idx").on(table.correlationId),
 ]);
 
 export const integrationLogs = pgTable("integration_logs", {
@@ -381,6 +421,7 @@ export const insertPriceTableSchema = createInsertSchema(priceTables);
 export const insertPriceTableItemSchema = createInsertSchema(priceTableItems);
 export const insertOrderSchema = createInsertSchema(orders);
 export const insertOrderItemSchema = createInsertSchema(orderItems);
+export const insertOrderStatusHistorySchema = createInsertSchema(orderStatusHistory);
 
 export type User = typeof user.$inferSelect;
 export type Session = typeof session.$inferSelect;
@@ -391,6 +432,7 @@ export type PriceTable = typeof priceTables.$inferSelect;
 export type PriceTableItem = typeof priceTableItems.$inferSelect;
 export type Order = typeof orders.$inferSelect;
 export type OrderItem = typeof orderItems.$inferSelect;
+export type OrderStatusHistory = typeof orderStatusHistory.$inferSelect;
 export type InsertUser = typeof user.$inferInsert;
 export type InsertSession = typeof session.$inferInsert;
 export type InsertRepresentative = typeof representatives.$inferInsert;

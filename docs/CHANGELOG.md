@@ -7,6 +7,27 @@
 
 # Changelog
 
+## Fase 5 — Integração ERP de saída
+
+- Fluxo pull-based para o ERP listar pedidos `SUBMITTED` pendentes, obter seu
+  detalhe congelado e confirmar a importação, sem webhook ou push.
+- Rotas Bearer API key: fila paginada, detalhe de snapshot, confirmação
+  idempotente e atualização de status comercial.
+- Confirmação transacional com lock, `erp_order_number`, `erp_import_id` único e
+  conflitos explícitos para identidades ERP divergentes.
+- Cinco status ERP: `EM_ANALISE`, `APROVADO`, `FECHADO`, `FATURADO` e
+  `REPROVADO`; histórico auditável com origem, timestamp e `correlation_id`.
+- Eventos de status antigos ou com timestamp igual são ignorados; status igual
+  com timestamp novo atualiza o checkpoint sem duplicar o histórico.
+- Snapshots dos códigos ERP da capa e de `product_erp_id` nos itens; a
+  exportação não consulta códigos cadastrais atuais nem recalcula preços,
+  descontos ou totais. Decimais continuam strings de precisão fixa.
+- Interface passou a exibir status ERP localizado, pedido ERP, data de
+  integração e histórico de status.
+- Migration manual `0009_phase_5_erp_orders.sql` e checkpoint de snapshot
+  `0010_woozy_prima.sql`; `0011_wise_impossible_man.sql` congela e faz backfill
+  dos códigos ERP da capa.
+
 ## Fase 4 — Orçamentos
 
 - Pedidos `DRAFT`/`SUBMITTED` com número interno gerado por sequence, escopo por

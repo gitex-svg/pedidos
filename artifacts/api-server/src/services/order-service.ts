@@ -1,5 +1,5 @@
 import { and, count, desc, eq, ilike, sql } from "drizzle-orm";
-import { carriers, customers, db, orderItems, orders, paymentTerms, products, representatives } from "@workspace/db";
+import { carriers, customers, db, orderItems, orders, orderStatusHistory, paymentTerms, products, representatives } from "@workspace/db";
 import { discountService, multiplyDecimal, sumMoney } from "./discount-service";
 import { pricingService } from "./pricing-service";
 
@@ -101,7 +101,10 @@ export class DbOrderService {
     return { ...order, customerName: row.customerName, customerErpCode: row.customerErpCode,
       paymentTermDescription: row.paymentTermDescription, paymentTermErpCode: row.paymentTermErpCode,
       carrierName: row.carrierName, carrierErpCode: row.carrierErpCode,
-      items: await client.select().from(orderItems).where(eq(orderItems.orderId, id)) };
+      items: await client.select().from(orderItems).where(eq(orderItems.orderId, id)),
+      statusHistory: await client.select().from(orderStatusHistory)
+        .where(eq(orderStatusHistory.orderId, id))
+        .orderBy(orderStatusHistory.createdAt, orderStatusHistory.id) };
   }
   async list(actor: Actor, input: { page: number; pageSize: number; status?: "DRAFT" | "SUBMITTED"; number?: number; customer?: string }) {
     const filters: any[] = [];
@@ -150,7 +153,7 @@ export class DbOrderService {
       const netTotal = multiplyDecimal(net, 6, input.quantity, 4, 2);
       assertMoneyFits(grossTotal);
       assertMoneyFits(netTotal);
-      await tx.insert(orderItems).values({ orderId: id, productId: product.id, groupCode: product.groupCode, typeCode: product.typeCode, productCode: product.productCode, referenceCode: product.referenceCode, productCodeSnapshot: product.code, descriptionSnapshot: product.description, packagingSnapshot: product.packaging, widthSnapshot: product.width, colorSnapshot: product.color, quantity: input.quantity, suggestedUnitPrice: price.unitPrice, suggestedPriceOrigin: price.origin, suggestedPriceTableId: price.priceTableId, suggestedPriceTableErpCode: price.priceTableErpCode, effectiveUnitPrice: effective, effectivePriceOrigin: special ? "SPECIAL" : price.origin, isSpecialPrice: !!special, specialUnitPrice: special, discount1: discounts[0], discount2: discounts[1], discount3: discounts[2], discount4: discounts[3], discountsApplied: !special, netUnitPrice: net, grossTotal, netTotal });
+      await tx.insert(orderItems).values({ orderId: id, productId: product.id, groupCode: product.groupCode, typeCode: product.typeCode, productCode: product.productCode, referenceCode: product.referenceCode, productCodeSnapshot: product.code, productErpIdSnapshot: product.erpId, descriptionSnapshot: product.description, packagingSnapshot: product.packaging, widthSnapshot: product.width, colorSnapshot: product.color, quantity: input.quantity, suggestedUnitPrice: price.unitPrice, suggestedPriceOrigin: price.origin, suggestedPriceTableId: price.priceTableId, suggestedPriceTableErpCode: price.priceTableErpCode, effectiveUnitPrice: effective, effectivePriceOrigin: special ? "SPECIAL" : price.origin, isSpecialPrice: !!special, specialUnitPrice: special, discount1: discounts[0], discount2: discounts[1], discount3: discounts[2], discount4: discounts[3], discountsApplied: !special, netUnitPrice: net, grossTotal, netTotal });
       await this.recalculate(tx, order); return this.detailIn(tx, actor, id);
     });
   }
@@ -163,7 +166,18 @@ export class DbOrderService {
     });
   }
   async deleteItem(actor: Actor, id: string, itemId: string, version: number) { assertVersion(version); return db.transaction(async tx => { const order = await this.lockOwned(tx, id, actor, version); const deleted = await tx.delete(orderItems).where(and(eq(orderItems.id, itemId), eq(orderItems.orderId, id))).returning(); if (!deleted[0]) throw new OrderBusinessError("ITEM_NOT_FOUND"); await this.recalculate(tx, order); return this.detailIn(tx, actor, id); }); }
-  async submit(id: string, actor: Actor, version: number) { assertVersion(version); return db.transaction(async tx => { const order = await this.lockOwned(tx, id, actor, version); const [representative] = await tx.select().from(representatives).where(eq(representatives.id, order.representativeId)); await this.validateHeader(tx, actor, order); const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, id)); if (!representative?.active || !items.length) throw new OrderBusinessError("ORDER_NOT_READY"); await this.recalculate(tx, order); await tx.update(orders).set({ internalStatus: "SUBMITTED", submittedAt: new Date(), updatedAt: new Date(), version: order.version + 2 }).where(eq(orders.id, id)); return this.detailIn(tx, actor, id); }); }
+  async submit(id: string, actor: Actor, version: number) { assertVersion(version); return db.transaction(async tx => { const order = await this.lockOwned(tx, id, actor, version); const [[representative], [customer], [paymentTerm], [carrier]] = await Promise.all([
+      tx.select().from(representatives).where(eq(representatives.id, order.representativeId)),
+      tx.select().from(customers).where(eq(customers.id, order.customerId)),
+      tx.select().from(paymentTerms).where(eq(paymentTerms.id, order.paymentTermId)),
+      order.carrierId ? tx.select().from(carriers).where(eq(carriers.id, order.carrierId)) : Promise.resolve([]),
+    ]); await this.validateHeader(tx, actor, order); const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, id)); if (!representative?.active || !customer || !paymentTerm || !items.length) throw new OrderBusinessError("ORDER_NOT_READY"); await this.recalculate(tx, order); const submittedAt = new Date(); await tx.update(orders).set({
+      internalStatus: "SUBMITTED", submittedAt, updatedAt: submittedAt, version: order.version + 2,
+      representativeErpCodeSnapshot: representative.erpCode,
+      customerErpCodeSnapshot: customer.erpCode,
+      paymentTermErpCodeSnapshot: paymentTerm.erpCode,
+      carrierErpCodeSnapshot: carrier?.erpCode ?? null,
+    }).where(eq(orders.id, id)); await tx.insert(orderStatusHistory).values({ orderId: id, statusType: "INTERNAL", previousStatus: "DRAFT", newStatus: "SUBMITTED", source: actor.role === "ADMIN" ? "ADMIN" : "REPRESENTATIVE" }); return this.detailIn(tx, actor, id); }); }
 }
 export const orderService = new DbOrderService();
 export interface OrderService { submit(orderId: string, actorUserId: string): Promise<void>; }

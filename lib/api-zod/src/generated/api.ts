@@ -334,8 +334,10 @@ export const ListOrdersResponse = zod.object({
   "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
   "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
   "erpOrderNumber": zod.string().nullable(),
+  "erpImportId": zod.string().nullable(),
   "submittedAt": zod.coerce.date().nullable(),
   "erpSyncedAt": zod.coerce.date().nullable(),
+  "erpLastStatusAt": zod.coerce.date().nullable(),
   "createdByUserId": zod.uuid(),
   "version": zod.int(),
   "createdAt": zod.coerce.date(),
@@ -405,8 +407,10 @@ export const CreateOrderResponse = zod.object({
   "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
   "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
   "erpOrderNumber": zod.string().nullable(),
+  "erpImportId": zod.string().nullable(),
   "submittedAt": zod.coerce.date().nullable(),
   "erpSyncedAt": zod.coerce.date().nullable(),
+  "erpLastStatusAt": zod.coerce.date().nullable(),
   "createdByUserId": zod.uuid(),
   "version": zod.int(),
   "createdAt": zod.coerce.date(),
@@ -426,6 +430,7 @@ export const CreateOrderResponse = zod.object({
   "productCode": zod.string(),
   "referenceCode": zod.string(),
   "productCodeSnapshot": zod.string(),
+  "productErpIdSnapshot": zod.string(),
   "descriptionSnapshot": zod.string(),
   "packagingSnapshot": zod.string().nullable(),
   "widthSnapshot": zod.string().nullable(),
@@ -449,7 +454,18 @@ export const CreateOrderResponse = zod.object({
   "netTotal": zod.string().regex(createOrderResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('Snapshot imutável do produto e preço no momento da inclusão.'))
+}).describe('Snapshot imutável do produto e preço no momento da inclusão.')),
+  "statusHistory": zod.array(zod.object({
+  "id": zod.uuid(),
+  "orderId": zod.uuid(),
+  "statusType": zod.enum(['INTERNAL', 'ERP']),
+  "previousStatus": zod.string().nullable(),
+  "newStatus": zod.string(),
+  "source": zod.enum(['SYSTEM', 'REPRESENTATIVE', 'ERP', 'ADMIN']),
+  "correlationId": zod.uuid().nullable(),
+  "sourceUpdatedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+}))
 })
 
 
@@ -493,8 +509,10 @@ export const GetOrderResponse = zod.object({
   "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
   "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
   "erpOrderNumber": zod.string().nullable(),
+  "erpImportId": zod.string().nullable(),
   "submittedAt": zod.coerce.date().nullable(),
   "erpSyncedAt": zod.coerce.date().nullable(),
+  "erpLastStatusAt": zod.coerce.date().nullable(),
   "createdByUserId": zod.uuid(),
   "version": zod.int(),
   "createdAt": zod.coerce.date(),
@@ -514,6 +532,7 @@ export const GetOrderResponse = zod.object({
   "productCode": zod.string(),
   "referenceCode": zod.string(),
   "productCodeSnapshot": zod.string(),
+  "productErpIdSnapshot": zod.string(),
   "descriptionSnapshot": zod.string(),
   "packagingSnapshot": zod.string().nullable(),
   "widthSnapshot": zod.string().nullable(),
@@ -537,7 +556,18 @@ export const GetOrderResponse = zod.object({
   "netTotal": zod.string().regex(getOrderResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('Snapshot imutável do produto e preço no momento da inclusão.'))
+}).describe('Snapshot imutável do produto e preço no momento da inclusão.')),
+  "statusHistory": zod.array(zod.object({
+  "id": zod.uuid(),
+  "orderId": zod.uuid(),
+  "statusType": zod.enum(['INTERNAL', 'ERP']),
+  "previousStatus": zod.string().nullable(),
+  "newStatus": zod.string(),
+  "source": zod.enum(['SYSTEM', 'REPRESENTATIVE', 'ERP', 'ADMIN']),
+  "correlationId": zod.uuid().nullable(),
+  "sourceUpdatedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+}))
 })
 
 
@@ -602,8 +632,10 @@ export const UpdateOrderResponse = zod.object({
   "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
   "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
   "erpOrderNumber": zod.string().nullable(),
+  "erpImportId": zod.string().nullable(),
   "submittedAt": zod.coerce.date().nullable(),
   "erpSyncedAt": zod.coerce.date().nullable(),
+  "erpLastStatusAt": zod.coerce.date().nullable(),
   "createdByUserId": zod.uuid(),
   "version": zod.int(),
   "createdAt": zod.coerce.date(),
@@ -623,6 +655,7 @@ export const UpdateOrderResponse = zod.object({
   "productCode": zod.string(),
   "referenceCode": zod.string(),
   "productCodeSnapshot": zod.string(),
+  "productErpIdSnapshot": zod.string(),
   "descriptionSnapshot": zod.string(),
   "packagingSnapshot": zod.string().nullable(),
   "widthSnapshot": zod.string().nullable(),
@@ -646,7 +679,18 @@ export const UpdateOrderResponse = zod.object({
   "netTotal": zod.string().regex(updateOrderResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('Snapshot imutável do produto e preço no momento da inclusão.'))
+}).describe('Snapshot imutável do produto e preço no momento da inclusão.')),
+  "statusHistory": zod.array(zod.object({
+  "id": zod.uuid(),
+  "orderId": zod.uuid(),
+  "statusType": zod.enum(['INTERNAL', 'ERP']),
+  "previousStatus": zod.string().nullable(),
+  "newStatus": zod.string(),
+  "source": zod.enum(['SYSTEM', 'REPRESENTATIVE', 'ERP', 'ADMIN']),
+  "correlationId": zod.uuid().nullable(),
+  "sourceUpdatedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+}))
 })
 
 
@@ -697,8 +741,10 @@ export const SubmitOrderResponse = zod.object({
   "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
   "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
   "erpOrderNumber": zod.string().nullable(),
+  "erpImportId": zod.string().nullable(),
   "submittedAt": zod.coerce.date().nullable(),
   "erpSyncedAt": zod.coerce.date().nullable(),
+  "erpLastStatusAt": zod.coerce.date().nullable(),
   "createdByUserId": zod.uuid(),
   "version": zod.int(),
   "createdAt": zod.coerce.date(),
@@ -718,6 +764,7 @@ export const SubmitOrderResponse = zod.object({
   "productCode": zod.string(),
   "referenceCode": zod.string(),
   "productCodeSnapshot": zod.string(),
+  "productErpIdSnapshot": zod.string(),
   "descriptionSnapshot": zod.string(),
   "packagingSnapshot": zod.string().nullable(),
   "widthSnapshot": zod.string().nullable(),
@@ -741,7 +788,18 @@ export const SubmitOrderResponse = zod.object({
   "netTotal": zod.string().regex(submitOrderResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('Snapshot imutável do produto e preço no momento da inclusão.'))
+}).describe('Snapshot imutável do produto e preço no momento da inclusão.')),
+  "statusHistory": zod.array(zod.object({
+  "id": zod.uuid(),
+  "orderId": zod.uuid(),
+  "statusType": zod.enum(['INTERNAL', 'ERP']),
+  "previousStatus": zod.string().nullable(),
+  "newStatus": zod.string(),
+  "source": zod.enum(['SYSTEM', 'REPRESENTATIVE', 'ERP', 'ADMIN']),
+  "correlationId": zod.uuid().nullable(),
+  "sourceUpdatedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+}))
 })
 
 
@@ -797,8 +855,10 @@ export const AddOrderItemResponse = zod.object({
   "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
   "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
   "erpOrderNumber": zod.string().nullable(),
+  "erpImportId": zod.string().nullable(),
   "submittedAt": zod.coerce.date().nullable(),
   "erpSyncedAt": zod.coerce.date().nullable(),
+  "erpLastStatusAt": zod.coerce.date().nullable(),
   "createdByUserId": zod.uuid(),
   "version": zod.int(),
   "createdAt": zod.coerce.date(),
@@ -818,6 +878,7 @@ export const AddOrderItemResponse = zod.object({
   "productCode": zod.string(),
   "referenceCode": zod.string(),
   "productCodeSnapshot": zod.string(),
+  "productErpIdSnapshot": zod.string(),
   "descriptionSnapshot": zod.string(),
   "packagingSnapshot": zod.string().nullable(),
   "widthSnapshot": zod.string().nullable(),
@@ -841,7 +902,18 @@ export const AddOrderItemResponse = zod.object({
   "netTotal": zod.string().regex(addOrderItemResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('Snapshot imutável do produto e preço no momento da inclusão.'))
+}).describe('Snapshot imutável do produto e preço no momento da inclusão.')),
+  "statusHistory": zod.array(zod.object({
+  "id": zod.uuid(),
+  "orderId": zod.uuid(),
+  "statusType": zod.enum(['INTERNAL', 'ERP']),
+  "previousStatus": zod.string().nullable(),
+  "newStatus": zod.string(),
+  "source": zod.enum(['SYSTEM', 'REPRESENTATIVE', 'ERP', 'ADMIN']),
+  "correlationId": zod.uuid().nullable(),
+  "sourceUpdatedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+}))
 })
 
 
@@ -897,8 +969,10 @@ export const UpdateOrderItemResponse = zod.object({
   "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
   "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
   "erpOrderNumber": zod.string().nullable(),
+  "erpImportId": zod.string().nullable(),
   "submittedAt": zod.coerce.date().nullable(),
   "erpSyncedAt": zod.coerce.date().nullable(),
+  "erpLastStatusAt": zod.coerce.date().nullable(),
   "createdByUserId": zod.uuid(),
   "version": zod.int(),
   "createdAt": zod.coerce.date(),
@@ -918,6 +992,7 @@ export const UpdateOrderItemResponse = zod.object({
   "productCode": zod.string(),
   "referenceCode": zod.string(),
   "productCodeSnapshot": zod.string(),
+  "productErpIdSnapshot": zod.string(),
   "descriptionSnapshot": zod.string(),
   "packagingSnapshot": zod.string().nullable(),
   "widthSnapshot": zod.string().nullable(),
@@ -941,7 +1016,18 @@ export const UpdateOrderItemResponse = zod.object({
   "netTotal": zod.string().regex(updateOrderItemResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('Snapshot imutável do produto e preço no momento da inclusão.'))
+}).describe('Snapshot imutável do produto e preço no momento da inclusão.')),
+  "statusHistory": zod.array(zod.object({
+  "id": zod.uuid(),
+  "orderId": zod.uuid(),
+  "statusType": zod.enum(['INTERNAL', 'ERP']),
+  "previousStatus": zod.string().nullable(),
+  "newStatus": zod.string(),
+  "source": zod.enum(['SYSTEM', 'REPRESENTATIVE', 'ERP', 'ADMIN']),
+  "correlationId": zod.uuid().nullable(),
+  "sourceUpdatedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+}))
 })
 
 
@@ -993,8 +1079,10 @@ export const DeleteOrderItemResponse = zod.object({
   "internalStatus": zod.enum(['DRAFT', 'SUBMITTED']),
   "erpStatus": zod.union([zod.literal('EM_ANALISE'),zod.literal('APROVADO'),zod.literal('FECHADO'),zod.literal('FATURADO'),zod.literal('REPROVADO'),zod.literal(null)]).nullable(),
   "erpOrderNumber": zod.string().nullable(),
+  "erpImportId": zod.string().nullable(),
   "submittedAt": zod.coerce.date().nullable(),
   "erpSyncedAt": zod.coerce.date().nullable(),
+  "erpLastStatusAt": zod.coerce.date().nullable(),
   "createdByUserId": zod.uuid(),
   "version": zod.int(),
   "createdAt": zod.coerce.date(),
@@ -1014,6 +1102,7 @@ export const DeleteOrderItemResponse = zod.object({
   "productCode": zod.string(),
   "referenceCode": zod.string(),
   "productCodeSnapshot": zod.string(),
+  "productErpIdSnapshot": zod.string(),
   "descriptionSnapshot": zod.string(),
   "packagingSnapshot": zod.string().nullable(),
   "widthSnapshot": zod.string().nullable(),
@@ -1037,7 +1126,18 @@ export const DeleteOrderItemResponse = zod.object({
   "netTotal": zod.string().regex(deleteOrderItemResponseItemsItemNetTotalRegExp).describe('Total decimal exato'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
-}).describe('Snapshot imutável do produto e preço no momento da inclusão.'))
+}).describe('Snapshot imutável do produto e preço no momento da inclusão.')),
+  "statusHistory": zod.array(zod.object({
+  "id": zod.uuid(),
+  "orderId": zod.uuid(),
+  "statusType": zod.enum(['INTERNAL', 'ERP']),
+  "previousStatus": zod.string().nullable(),
+  "newStatus": zod.string(),
+  "source": zod.enum(['SYSTEM', 'REPRESENTATIVE', 'ERP', 'ADMIN']),
+  "correlationId": zod.uuid().nullable(),
+  "sourceUpdatedAt": zod.coerce.date().nullable(),
+  "createdAt": zod.coerce.date()
+}))
 })
 
 
@@ -1358,6 +1458,178 @@ export const SyncPriceTableItemsResponse = zod.object({
   "reason": zod.enum(['STALE_SOURCE_VERSION', 'REPRESENTATIVE_NOT_FOUND', 'CUSTOMER_NOT_FOUND', 'PRODUCT_NOT_FOUND', 'PRICE_TABLE_NOT_FOUND', 'VALIDATION_ERROR', 'PERSISTENCE_ERROR']).optional().describe('Razão estável e adequada para tratamento programático.'),
   "message": zod.string().optional()
 }))
+})
+
+
+/**
+ * @summary Lista deterministicamente pedidos submetidos ainda não confirmados
+ */
+export const listSubmittedErpOrdersQueryPageDefault = 1;
+
+export const listSubmittedErpOrdersQueryPageSizeDefault = 50;
+export const listSubmittedErpOrdersQueryPageSizeMax = 100;
+
+
+
+export const ListSubmittedErpOrdersQueryParams = zod.object({
+  "page": zod.coerce.number().int().min(1).default(listSubmittedErpOrdersQueryPageDefault),
+  "pageSize": zod.coerce.number().int().min(1).max(listSubmittedErpOrdersQueryPageSizeMax).default(listSubmittedErpOrdersQueryPageSizeDefault)
+})
+
+export const listSubmittedErpOrdersResponseItemsItemGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const listSubmittedErpOrdersResponseItemsItemNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+
+
+export const ListSubmittedErpOrdersResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "internal_number": zod.int(),
+  "submitted_at": zod.coerce.date(),
+  "representative_erp_code": zod.string(),
+  "customer_erp_code": zod.string(),
+  "gross_total": zod.string().regex(listSubmittedErpOrdersResponseItemsItemGrossTotalRegExp).describe('Total decimal exato'),
+  "net_total": zod.string().regex(listSubmittedErpOrdersResponseItemsItemNetTotalRegExp).describe('Total decimal exato')
+})),
+  "page": zod.int(),
+  "page_size": zod.int(),
+  "total_items": zod.int(),
+  "total_pages": zod.int()
+})
+
+
+/**
+ * Não recalcula preços, descontos ou totais e não confirma a importação.
+ * @summary Obtém o snapshot persistido de um pedido submetido
+ */
+export const GetErpOrderParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const getErpOrderResponseDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getErpOrderResponseDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getErpOrderResponseDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getErpOrderResponseDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getErpOrderResponseGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const getErpOrderResponseNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const getErpOrderResponseItemsItemSuggestedUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const getErpOrderResponseItemsItemEffectiveUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const getErpOrderResponseItemsItemSpecialUnitPriceOneRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const getErpOrderResponseItemsItemDiscount1RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getErpOrderResponseItemsItemDiscount2RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getErpOrderResponseItemsItemDiscount3RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getErpOrderResponseItemsItemDiscount4RegExp = new RegExp('^(?:0|[1-9][0-9]{0,2})(?:\\.[0-9]{1,4})?$');
+export const getErpOrderResponseItemsItemNetUnitPriceRegExp = new RegExp('^[0-9]{1,12}\\.[0-9]{6}$');
+export const getErpOrderResponseItemsItemGrossTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+export const getErpOrderResponseItemsItemNetTotalRegExp = new RegExp('^[0-9]{1,18}\\.[0-9]{2}$');
+
+
+export const GetErpOrderResponse = zod.object({
+  "id": zod.uuid(),
+  "internal_number": zod.int(),
+  "created_at": zod.coerce.date(),
+  "submitted_at": zod.coerce.date(),
+  "representative_erp_code": zod.string(),
+  "customer_erp_code": zod.string(),
+  "payment_term_erp_code": zod.string(),
+  "carrier_erp_code": zod.string().nullable(),
+  "notes": zod.string().nullable(),
+  "discount1": zod.string().regex(getErpOrderResponseDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(getErpOrderResponseDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(getErpOrderResponseDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(getErpOrderResponseDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "gross_total": zod.string().regex(getErpOrderResponseGrossTotalRegExp).describe('Total decimal exato'),
+  "net_total": zod.string().regex(getErpOrderResponseNetTotalRegExp).describe('Total decimal exato'),
+  "erp_order_number": zod.string().nullable(),
+  "erp_import_id": zod.string().nullable(),
+  "erp_synced_at": zod.coerce.date().nullable(),
+  "erp_status": zod.union([zod.enum(['EM_ANALISE', 'APROVADO', 'FECHADO', 'FATURADO', 'REPROVADO']),zod.null()]),
+  "items": zod.array(zod.object({
+  "id": zod.uuid(),
+  "product_erp_id": zod.string(),
+  "group_code": zod.string(),
+  "type_code": zod.string(),
+  "product_code": zod.string(),
+  "reference_code": zod.string(),
+  "product_code_snapshot": zod.string(),
+  "description_snapshot": zod.string(),
+  "packaging_snapshot": zod.string().nullable(),
+  "width_snapshot": zod.string().nullable(),
+  "color_snapshot": zod.string().nullable(),
+  "quantity": zod.string(),
+  "suggested_unit_price": zod.string().regex(getErpOrderResponseItemsItemSuggestedUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "suggested_price_origin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD']),
+  "suggested_price_table_erp_code": zod.string().nullable(),
+  "effective_unit_price": zod.string().regex(getErpOrderResponseItemsItemEffectiveUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "effective_price_origin": zod.enum(['CUSTOMER', 'REPRESENTATIVE', 'STANDARD', 'SPECIAL']),
+  "is_special_price": zod.boolean(),
+  "special_unit_price": zod.union([zod.string().regex(getErpOrderResponseItemsItemSpecialUnitPriceOneRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),zod.null()]),
+  "discount1": zod.string().regex(getErpOrderResponseItemsItemDiscount1RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount2": zod.string().regex(getErpOrderResponseItemsItemDiscount2RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount3": zod.string().regex(getErpOrderResponseItemsItemDiscount3RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discount4": zod.string().regex(getErpOrderResponseItemsItemDiscount4RegExp).describe('Percentual decimal exato entre 0 e 100 com até quatro casas.'),
+  "discounts_applied": zod.boolean(),
+  "net_unit_price": zod.string().regex(getErpOrderResponseItemsItemNetUnitPriceRegExp).describe('Decimal exato normalizado com exatamente 6 casas decimais.'),
+  "gross_total": zod.string().regex(getErpOrderResponseItemsItemGrossTotalRegExp).describe('Total decimal exato'),
+  "net_total": zod.string().regex(getErpOrderResponseItemsItemNetTotalRegExp).describe('Total decimal exato')
+}))
+})
+
+
+/**
+ * Repetições com a mesma identidade são idempotentes; um número ERP ou identificador de importação conflitante retorna 409.
+ * @summary Confirma transacionalmente a importação no ERP
+ */
+export const ConfirmErpOrderParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const confirmErpOrderBodyErpOrderNumberMax = 128;
+
+export const confirmErpOrderBodyErpImportIdMax = 128;
+
+
+
+export const ConfirmErpOrderBody = zod.object({
+  "erp_order_number": zod.string().min(1).max(confirmErpOrderBodyErpOrderNumberMax),
+  "erp_import_id": zod.string().min(1).max(confirmErpOrderBodyErpImportIdMax).optional().describe('Identificador idempotente opcional e globalmente único.'),
+  "status": zod.enum(['EM_ANALISE', 'APROVADO', 'FECHADO', 'FATURADO', 'REPROVADO']).optional(),
+  "source_updated_at": zod.coerce.date(),
+  "correlation_id": zod.uuid().optional()
+})
+
+export const ConfirmErpOrderResponse = zod.object({
+  "correlation_id": zod.uuid(),
+  "result": zod.enum(['updated', 'ignored']),
+  "reason": zod.enum(['ALREADY_CONFIRMED', 'STALE_SOURCE_VERSION', 'STATUS_UNCHANGED']).optional(),
+  "erp_order_number": zod.string().optional(),
+  "erp_import_id": zod.string().nullish(),
+  "erp_synced_at": zod.coerce.date().optional(),
+  "erp_status": zod.union([zod.enum(['EM_ANALISE', 'APROVADO', 'FECHADO', 'FATURADO', 'REPROVADO']),zod.null()])
+})
+
+
+/**
+ * Timestamps iguais ou anteriores são ignorados. O mesmo status não duplica histórico.
+ * @summary Atualiza o status comercial do ERP
+ */
+export const UpdateErpOrderStatusParams = zod.object({
+  "id": zod.uuid()
+})
+
+export const UpdateErpOrderStatusBody = zod.object({
+  "status": zod.enum(['EM_ANALISE', 'APROVADO', 'FECHADO', 'FATURADO', 'REPROVADO']),
+  "source_updated_at": zod.coerce.date(),
+  "correlation_id": zod.uuid().optional()
+})
+
+export const UpdateErpOrderStatusResponse = zod.object({
+  "correlation_id": zod.uuid(),
+  "result": zod.enum(['updated', 'ignored']),
+  "reason": zod.enum(['ALREADY_CONFIRMED', 'STALE_SOURCE_VERSION', 'STATUS_UNCHANGED']).optional(),
+  "erp_order_number": zod.string().optional(),
+  "erp_import_id": zod.string().nullish(),
+  "erp_synced_at": zod.coerce.date().optional(),
+  "erp_status": zod.union([zod.enum(['EM_ANALISE', 'APROVADO', 'FECHADO', 'FATURADO', 'REPROVADO']),zod.null()])
 })
 
 

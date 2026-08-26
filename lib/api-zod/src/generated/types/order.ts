@@ -35,9 +35,13 @@ export interface Order {
   /** @nullable */
   erpOrderNumber: string | null;
   /** @nullable */
+  erpImportId: string | null;
+  /** @nullable */
   submittedAt: Date | null;
   /** @nullable */
   erpSyncedAt: Date | null;
+  /** @nullable */
+  erpLastStatusAt: Date | null;
   createdByUserId: string;
   version: number;
   createdAt: Date;

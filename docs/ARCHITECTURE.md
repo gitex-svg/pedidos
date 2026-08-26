@@ -14,6 +14,9 @@ são atômicos no PostgreSQL; consultas paginadas aplicam filtros, contagem e of
 - **Autenticação:** Better Auth completo, com adaptador Drizzle para PostgreSQL. A biblioteca valida credenciais, cria e valida sessões, assina cookies, controla expiração e revoga a sessão no logout.
 - **Integração ERP (Fases 2 e 3):** endpoints de entrada autenticados por Bearer
   token para sincronizar cadastros de referência, tabelas de preço e seus itens.
+- **Integração ERP (Fase 5):** endpoints pull autenticados por Bearer token para
+  o ERP buscar pedidos `SUBMITTED`, importar seus snapshots e informar
+  confirmação/status.
 
 ## Separação
 
@@ -97,6 +100,48 @@ A interface usa exclusivamente os hooks React Query gerados pelo OpenAPI.
 Listagens e seletores consultam o servidor com paginação/pesquisa; as mutações
 devolvem o detalhe completo e a versão atual para manter o cache sincronizado.
 Há apresentações próprias para desktop e mobile.
+
+## Integração de saída de pedidos — Fase 5
+
+A saída é deliberadamente **pull-based**: depois de finalizar o pedido, a
+aplicação apenas o coloca na fila; ela não chama o ERP, não usa webhook e não
+executa retentativa em segundo plano. O ERP, autenticado por
+`Authorization: Bearer <ERP_API_KEY>`, controla a leitura e a importação:
+
+- `GET /api/v1/erp/orders/submitted?page=1&pageSize=50` lista somente
+  `SUBMITTED` com `erp_synced_at` nulo, ordenados por `submitted_at`, depois
+  `id`. A paginação tem padrão 50 e máximo 100, retornando `page_size`,
+  `total_items` e `total_pages`.
+- `GET /api/v1/erp/orders/:id` entrega o cabeçalho e os itens persistidos do
+  pedido submetido. É leitura de snapshot, sem recalcular preço, descontos ou
+  totais a partir do catálogo corrente. Os códigos ERP do representante,
+  cliente, condição de pagamento e transportadora são congelados na
+  finalização; alterações cadastrais posteriores não mudam a exportação.
+- `POST /api/v1/erp/orders/:id/confirm` grava atomica e transacionalmente
+  `erp_order_number`, `erp_import_id` opcional, `erp_synced_at` e, se enviado,
+  o status. O bloqueio `FOR UPDATE` e a unicidade de `erp_import_id` evitam
+  confirmações concorrentes incompatíveis.
+- `PATCH /api/v1/erp/orders/:id/status` recebe o retorno comercial do ERP.
+
+As mutações recebem `correlation_id` UUID opcional em `snake_case`; se ausente,
+o servidor gera um e o registra em `integration_logs` e, quando há mudança de
+status, em `order_status_history`. Confirmação repetida com o mesmo
+`erp_order_number` e mesmo `erp_import_id` é idempotente e responde
+`ignored`/`ALREADY_CONFIRMED`; identificadores divergentes retornam `409`.
+
+O status só avança para evento com `source_updated_at` estritamente posterior.
+Timestamp anterior **ou igual** produz `ignored`/`STALE_SOURCE_VERSION`. Um
+timestamp novo com o mesmo status atualiza apenas o checkpoint temporal e
+responde `ignored`/`STATUS_UNCHANGED`, sem duplicar histórico. Alterações reais
+registram a transição anterior/nova, fonte `ERP`, correlação e timestamp de
+origem. Os status aceitos são `EM_ANALISE`, `APROVADO`, `FECHADO`, `FATURADO` e
+`REPROVADO`.
+
+A UI apresenta badge localizado (Em Análise, Aprovado, Fechado, Faturado ou
+Reprovado), número ERP, data de integração e linha do tempo de histórico; a
+ausência de status não é substituída por um status fictício. Valores financeiros
+continuam strings decimais: unitários `NUMERIC(18,6)`, quantidades
+`NUMERIC(18,4)` e totais `NUMERIC(20,2)`.
 
 ## Compatibilidade HTTP
 

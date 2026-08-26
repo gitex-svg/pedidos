@@ -7,6 +7,7 @@ import {
 import { eq, or, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireErpApiKey } from "../middlewares/erp-api-key";
+import { ErpOrderError, erpOrderService } from "../services/erp-integration-service";
 
 const router: IRouter = Router();
 const code = z.string().trim().min(1).max(128);
@@ -210,6 +211,98 @@ const handlers: Record<keyof typeof erpItemSchemas, (item: any) => Promise<Outco
 export const erpBatchSchema = z.object({
   correlation_id: z.uuid().optional(),
   items: z.array(z.unknown()).max(500),
+});
+
+const orderIdSchema = z.uuid();
+const correlationIdSchema = z.uuid().optional();
+const erpOrderStatusSchema = z.enum(["EM_ANALISE", "APROVADO", "FECHADO", "FATURADO", "REPROVADO"]);
+const erpOrderNumberSchema = z.string().trim().min(1).max(128);
+const submittedQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+}).strict();
+const confirmSchema = z.object({
+  erp_order_number: erpOrderNumberSchema,
+  erp_import_id: z.string().trim().min(1).max(128).optional(),
+  status: erpOrderStatusSchema.optional(),
+  source_updated_at: z.coerce.date(),
+  correlation_id: correlationIdSchema,
+}).strict();
+const statusSchema = z.object({
+  status: erpOrderStatusSchema,
+  source_updated_at: z.coerce.date(),
+  correlation_id: correlationIdSchema,
+}).strict();
+
+function orderOperation(req: any, supplied?: string) {
+  return {
+    correlationId: supplied ?? randomUUID(),
+    endpoint: req.path,
+    method: req.method,
+  };
+}
+
+async function orderFailure(res: any, error: unknown, operation: ReturnType<typeof orderOperation>, id?: string) {
+  if (!(error instanceof ErpOrderError)) {
+    const wrapped = new ErpOrderError("PERSISTENCE_ERROR");
+    await erpOrderService.logFailure(operation, id, wrapped);
+    res.status(500).json({ error: "Erro ao processar pedido.", code: wrapped.code, correlation_id: operation.correlationId });
+    return;
+  }
+  await erpOrderService.logFailure(operation, id, error);
+  const status = error.code === "ORDER_NOT_FOUND" ? 404
+    : error.code.endsWith("_CONFLICT") ? 409
+      : 409;
+  res.status(status).json({ error: error.message, code: error.code, correlation_id: operation.correlationId });
+}
+
+router.get("/v1/erp/orders/submitted", requireErpApiKey, async (req, res) => {
+  const parsed = submittedQuerySchema.safeParse(req.query);
+  if (!parsed.success) return res.status(400).json({ error: "Parâmetros inválidos.", details: z.treeifyError(parsed.error) });
+  return res.json(await erpOrderService.listSubmitted(parsed.data));
+});
+
+router.get("/v1/erp/orders/:id", requireErpApiKey, async (req, res) => {
+  const id = orderIdSchema.safeParse(req.params.id);
+  if (!id.success) return res.status(400).json({ error: "Identificador inválido." });
+  try {
+    return res.json(await erpOrderService.detail(id.data));
+  } catch (error) {
+    const operation = orderOperation(req);
+    return orderFailure(res, error, operation, id.data);
+  }
+});
+
+router.post("/v1/erp/orders/:id/confirm", requireErpApiKey, async (req, res) => {
+  const id = orderIdSchema.safeParse(req.params.id);
+  const body = confirmSchema.safeParse(req.body);
+  if (!id.success || !body.success) return res.status(400).json({ error: "Dados inválidos." });
+  const operation = orderOperation(req, body.data.correlation_id);
+  try {
+    return res.json(await erpOrderService.confirm(id.data, {
+      erpOrderNumber: body.data.erp_order_number,
+      erpImportId: body.data.erp_import_id,
+      status: body.data.status,
+      sourceUpdatedAt: body.data.source_updated_at,
+    }, operation));
+  } catch (error) {
+    return orderFailure(res, error, operation, id.data);
+  }
+});
+
+router.patch("/v1/erp/orders/:id/status", requireErpApiKey, async (req, res) => {
+  const id = orderIdSchema.safeParse(req.params.id);
+  const body = statusSchema.safeParse(req.body);
+  if (!id.success || !body.success) return res.status(400).json({ error: "Dados inválidos." });
+  const operation = orderOperation(req, body.data.correlation_id);
+  try {
+    return res.json(await erpOrderService.updateStatus(id.data, {
+      status: body.data.status,
+      sourceUpdatedAt: body.data.source_updated_at,
+    }, operation));
+  } catch (error) {
+    return orderFailure(res, error, operation, id.data);
+  }
 });
 
 for (const entity of Object.keys(erpItemSchemas) as (keyof typeof erpItemSchemas)[]) {

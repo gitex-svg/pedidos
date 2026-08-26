@@ -97,3 +97,47 @@ Grupo, tipo, produto e referência são textos e preservam zeros à esquerda. A 
 - Integração de pedidos, status comerciais, faturamento ou retorno operacional
   do ERP.
 - Operações de escrita de catálogo na interface web.
+
+## Fase 5 — integração de saída ERP
+
+- O fluxo é **pull-based**. Ao finalizar, o pedido permanece `SUBMITTED` e
+  disponível ao ERP em `GET /api/v1/erp/orders/submitted`; o sistema não faz
+  push, webhook, polling ativo do ERP nem retentativa de importação.
+- A fila contém somente pedidos `SUBMITTED` sem `erp_synced_at`, é ordenada por
+  `submitted_at` e `id` e usa `pageSize=50` padrão/máximo 100. O ERP lê o
+  detalhe em `GET /api/v1/erp/orders/:id` antes de confirmar.
+- O detalhe é o retrato comercial persistido na finalização/inclusão do item:
+  códigos ERP, identificação do produto, preços, origem, descontos, quantidades
+  e totais. Dados de catálogo ou preço alterados depois não modificam a
+  exportação e a rota não recalcula nenhum valor.
+- `POST /api/v1/erp/orders/:id/confirm` exige `erp_order_number` e
+  `source_updated_at`; pode receber `erp_import_id`, `status` e
+  `correlation_id`. Repetir a confirmação com a mesma identidade é idempotente.
+  Trocar número ERP ou `erp_import_id` já associado é conflito `409`.
+- `PATCH /api/v1/erp/orders/:id/status` aceita somente `EM_ANALISE`,
+  `APROVADO`, `FECHADO`, `FATURADO` e `REPROVADO`. A mudança válida cria
+  histórico ERP com status anterior, novo status, origem, correlação e data de
+  origem.
+- Para status, `source_updated_at` anterior **ou igual** ao último timestamp ERP
+  é ignorado como `STALE_SOURCE_VERSION`. Timestamp mais novo com o mesmo status
+  é `STATUS_UNCHANGED`: avança o checkpoint, mas não duplica histórico.
+- Toda confirmação/status usa e devolve `correlation_id`; se não for informado,
+  o servidor o gera. Logs de integração e histórico permitem rastrear a
+  operação sem registrar API key.
+- A UI mostra badge em português para os cinco status, número do pedido ERP,
+  data de integração e histórico cronológico. Sem retorno ERP, não há badge de
+  status comercial.
+- Valores exibidos e enviados ao ERP permanecem strings decimais: preços com
+  seis casas, quantidades com quatro e totais com duas; a UI só formata a
+  apresentação, sem alterar a precisão persistida.
+
+## Escopo explicitamente fora da Fase 5
+
+- Push/callback/webhook, fila externa, agendamento ou retentativa automática de
+  entrega ao ERP.
+- Criação, alteração ou aprovação de pedidos pelo ERP; o ERP apenas lê
+  `SUBMITTED`, confirma a importação e atualiza o status comercial.
+- Cancelamento, estorno, devolução, estoque, crédito, fiscal/impostos, emissão
+  de nota, pagamento, frete operacional e regras de faturamento.
+- Recalcular preços, descontos, impostos, quantidades ou totais na exportação,
+  bem como reescrever snapshots de pedido já finalizado.

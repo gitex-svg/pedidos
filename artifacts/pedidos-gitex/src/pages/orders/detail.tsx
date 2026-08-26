@@ -36,6 +36,7 @@ import { formatMoney, formatUnitPrice, formatNumberBR, subtractMoney, validateAn
 import { Loader2, ArrowLeft, Search, Plus, Save, Trash2, Edit2, AlertCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getGetOrderQueryKey, getResolvePriceQueryKey, getListOrdersQueryKey } from '@workspace/api-client-react';
+import { ErpStatusBadge, ErpDateDisplay, getErpStatusConfig } from '@/components/erp-status-badge';
 
 export default function OrderDetail() {
   const params = useParams();
@@ -115,17 +116,35 @@ export default function OrderDetail() {
               <Badge variant={order.internalStatus === 'SUBMITTED' ? 'default' : 'secondary'} className="text-xs">
                 {order.internalStatus === 'SUBMITTED' ? 'Enviado' : 'Rascunho'}
               </Badge>
-              {order.erpStatus && <Badge variant="outline">{order.erpStatus}</Badge>}
+              <ErpStatusBadge status={order.erpStatus} />
             </div>
             <div className="text-muted-foreground mt-1 text-sm font-sans flex items-center gap-4">
               <span>{order.customerName}</span>
               <span className="font-mono-brand text-xs opacity-70">Cód: {order.customerErpCode}</span>
             </div>
+            {order.erpOrderNumber && (
+              <div className="mt-2 text-sm text-foreground bg-muted/30 border border-border inline-flex px-2 py-1 rounded font-mono-brand">
+                Pedido ERP: {order.erpOrderNumber}
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-4 mr-4 bg-card px-3 py-1.5 rounded-md border text-left hidden md:flex">
+              <ErpDateDisplay date={order.createdAt} label="Criado" />
+              <div className="h-6 w-px bg-border"></div>
+              <ErpDateDisplay date={order.submittedAt} label="Enviado" />
+              <div className="h-6 w-px bg-border"></div>
+              <ErpDateDisplay date={order.erpSyncedAt} label="Integração" />
+            </div>
             {canEdit && <SubmitOrderButton orderId={order.id} version={order.version} />}
           </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm pt-2 md:hidden">
+            <ErpDateDisplay date={order.createdAt} label="Criado" />
+            <ErpDateDisplay date={order.submittedAt} label="Enviado" />
+            <ErpDateDisplay date={order.erpSyncedAt} label="Integração" className="col-span-2" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -135,6 +154,7 @@ export default function OrderDetail() {
           <div className="lg:col-span-1 space-y-6">
             <OrderTotalsSection order={order} />
             <OrderHeaderSection order={order} canEdit={canEdit} />
+            <OrderHistorySection order={order} />
           </div>
         </div>
       </div>
@@ -225,6 +245,55 @@ function OrderTotalsSection({ order }: { order: any }) {
       </CardContent>
     </Card>
   );
+}
+
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+function OrderHistorySection({ order }: { order: any }) {
+  const history = order.statusHistory || [];
+
+  if (history.length === 0) return null;
+
+  return (
+    <Card className="bg-card/70 border-card-border backdrop-blur-sm shadow-sm">
+      <CardHeader className="bg-muted/30 border-b border-border/50 pb-4">
+        <CardTitle className="text-lg">Histórico de Status</CardTitle>
+      </CardHeader>
+      <CardContent className="p-6">
+        <div className="space-y-4 relative before:absolute before:inset-0 before:ml-2 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
+          {history.map((entry: any, index: number) => (
+            <div key={entry.id || index} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+              <div className="flex items-center justify-center w-5 h-5 rounded-full border border-primary/30 bg-background shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow flex-col gap-1 ring-4 ring-background">
+                <div className="h-1.5 w-1.5 bg-primary rounded-full"></div>
+              </div>
+              <div className="w-[calc(100%-2.5rem)] md:w-[calc(50%-1.5rem)] bg-card border border-border p-3 rounded-lg shadow-sm">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground font-mono-brand mb-1">
+                    <span>{format(new Date(entry.createdAt), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
+                    <span className="text-[10px] uppercase opacity-70">{entry.source || 'SISTEMA'}</span>
+                  </div>
+                  <div className="flex items-center flex-wrap gap-2 text-sm font-medium">
+                     {entry.previousStatus && (
+                       <span className="line-through text-muted-foreground/60">{statusHistoryLabel(entry.previousStatus)}</span>
+                    )}
+                    {entry.previousStatus && <span className="text-muted-foreground/60">→</span>}
+                     <span className="text-foreground">{statusHistoryLabel(entry.newStatus || entry.statusType)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function statusHistoryLabel(status: string) {
+  if (status === 'DRAFT') return 'Rascunho';
+  if (status === 'SUBMITTED') return 'Pedido finalizado';
+  return getErpStatusConfig(status).label;
 }
 
 function OrderHeaderSection({ order, canEdit }: { order: any, canEdit: boolean }) {

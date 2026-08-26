@@ -1,4 +1,4 @@
-# API de integração ERP — Fases 2 e 3
+# API de integração ERP — Fases 2 a 5
 
 ## Responsabilidade e segurança
 
@@ -109,3 +109,203 @@ quando as duas datas existirem.
 Permanecem fora deste contrato: criação e gestão de pedidos/orçamentos e itens;
 descontos e preço especial; impostos e fretes operacionais; aprovação e status
 comerciais; faturamento; e integração de pedidos e seus retornos com o ERP.
+
+## Pedidos — contrato da Fase 5
+
+### Fluxo pull e autenticação
+
+A saída de pedidos é **pull-based**. A aplicação não envia pedidos ao ERP, não
+executa webhook e não tenta reenviar importações: o ERP consulta a fila,
+obtém o detalhe persistido e confirma quando terminar sua importação. Todas as
+rotas desta seção exigem exatamente:
+
+```http
+Authorization: Bearer <ERP_API_KEY>
+Content-Type: application/json
+```
+
+`<ERP_API_KEY>` é somente um placeholder nos exemplos. A chave real deve ficar
+em secret/variável de ambiente do servidor ERP e nunca em código, frontend,
+documentação preenchida ou logs.
+
+| Operação | Endpoint |
+| --- | --- |
+| Fila de pedidos pendentes | `GET /api/v1/erp/orders/submitted` |
+| Detalhe congelado | `GET /api/v1/erp/orders/:id` |
+| Confirmação de importação | `POST /api/v1/erp/orders/:id/confirm` |
+| Atualização de status ERP | `PATCH /api/v1/erp/orders/:id/status` |
+
+### Fila e snapshot
+
+`GET /api/v1/erp/orders/submitted` retorna somente pedidos internos
+`SUBMITTED` cujo `erp_synced_at` ainda é nulo. A ordem determinística é
+`submitted_at` crescente e, em empate, `id` crescente. Aceita `page` (padrão
+1) e `pageSize` (padrão 50, máximo 100). A resposta usa `snake_case`:
+
+```json
+{
+  "items": [
+    {
+      "id": "<ORDER_ID>",
+      "internal_number": 12345,
+      "submitted_at": "2025-01-15T10:30:00.000Z",
+      "representative_erp_code": "REP-001",
+      "customer_erp_code": "CLI-001",
+      "gross_total": "1500.00",
+      "net_total": "1425.00"
+    }
+  ],
+  "page": 1,
+  "page_size": 50,
+  "total_items": 1,
+  "total_pages": 1
+}
+```
+
+O detalhe contém cabeçalho, códigos ERP e itens com todos os snapshots
+comerciais. `GET /api/v1/erp/orders/:id` não recalcula preços, descontos,
+quantidades nem totais e não confirma o pedido. Preços unitários são strings
+`NUMERIC(18,6)`, quantidades são strings `NUMERIC(18,4)` e totais são strings
+`NUMERIC(20,2)`; o consumidor deve preservar essas strings, sem `float` ou
+`number` JavaScript.
+
+### Confirmação, idempotência e conflitos
+
+O corpo da confirmação usa apenas `snake_case`:
+
+```json
+{
+  "erp_order_number": "ERP-ORDER-000123",
+  "erp_import_id": "ERP-IMPORT-000123",
+  "status": "EM_ANALISE",
+  "source_updated_at": "2025-01-15T10:35:00.000Z",
+  "correlation_id": "<CORRELATION_UUID>"
+}
+```
+
+`erp_order_number` e `source_updated_at` são obrigatórios; `erp_import_id`,
+`status` e `correlation_id` são opcionais. A mesma confirmação, com o mesmo
+número ERP e o mesmo identificador de importação, é idempotente: retorna `200`
+com `result: "ignored"` e `reason: "ALREADY_CONFIRMED"`. Alterar um
+`erp_order_number` já associado ou fornecer `erp_import_id` divergente/atribuído
+a outro pedido retorna `409` (`ERP_ORDER_NUMBER_CONFLICT` ou
+`ERP_IMPORT_ID_CONFLICT`). O pedido precisa existir e estar `SUBMITTED`;
+caso contrário, a API retorna `404` ou `409`.
+
+`correlation_id` é UUID opcional. Quando omitido, o servidor gera um; em ambos
+os casos ele é devolvido na resposta e registrado em `integration_logs` e no
+histórico de status quando houver transição.
+
+### Status, ordenação temporal e histórico
+
+Os únicos status aceitos são `EM_ANALISE`, `APROVADO`, `FECHADO`, `FATURADO` e
+`REPROVADO`. O ERP os atualiza por `PATCH` com `status`,
+`source_updated_at` e `correlation_id` opcional. Se `source_updated_at` for
+anterior **ou igual** ao último status ERP, a resposta é `200` com
+`result: "ignored"` e `reason: "STALE_SOURCE_VERSION"`. Se o timestamp for
+mais novo, mas o status for igual ao atual, o checkpoint é atualizado e a
+resposta usa `STATUS_UNCHANGED`; não há linha repetida no histórico. Uma
+mudança real registra status anterior/novo, fonte `ERP`, correlação e timestamp
+de origem em `order_status_history`.
+
+Na interface, os códigos são apresentados como Em Análise, Aprovado, Fechado,
+Faturado e Reprovado, juntamente com o número ERP, data de integração e
+histórico de status. A ausência de status não é inferida como aprovação ou
+qualquer outro estado.
+
+### Exemplos completos com `curl`
+
+Todos os valores entre `<...>` são placeholders; substitua-os no ambiente de
+integração e nunca use uma chave real em documentação ou repositório.
+
+**Fila:**
+
+```bash
+curl --request GET \
+  --url 'https://<API_HOST>/api/v1/erp/orders/submitted?page=1&pageSize=50' \
+  --header 'Authorization: Bearer <ERP_API_KEY>' \
+  --header 'Content-Type: application/json'
+```
+
+**Detalhe:**
+
+```bash
+curl --request GET \
+  --url 'https://<API_HOST>/api/v1/erp/orders/<ORDER_ID>' \
+  --header 'Authorization: Bearer <ERP_API_KEY>' \
+  --header 'Content-Type: application/json'
+```
+
+**Confirmação:**
+
+```bash
+curl --request POST \
+  --url 'https://<API_HOST>/api/v1/erp/orders/<ORDER_ID>/confirm' \
+  --header 'Authorization: Bearer <ERP_API_KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "erp_order_number": "<ERP_ORDER_NUMBER>",
+    "erp_import_id": "<ERP_IMPORT_ID>",
+    "status": "EM_ANALISE",
+    "source_updated_at": "<SOURCE_UPDATED_AT_ISO_8601>",
+    "correlation_id": "<CORRELATION_UUID>"
+  }'
+```
+
+**Status `EM_ANALISE`:**
+
+```bash
+curl --request PATCH \
+  --url 'https://<API_HOST>/api/v1/erp/orders/<ORDER_ID>/status' \
+  --header 'Authorization: Bearer <ERP_API_KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{"status":"EM_ANALISE","source_updated_at":"<SOURCE_UPDATED_AT_ISO_8601>","correlation_id":"<CORRELATION_UUID>"}'
+```
+
+**Status `APROVADO`:**
+
+```bash
+curl --request PATCH \
+  --url 'https://<API_HOST>/api/v1/erp/orders/<ORDER_ID>/status' \
+  --header 'Authorization: Bearer <ERP_API_KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{"status":"APROVADO","source_updated_at":"<SOURCE_UPDATED_AT_ISO_8601>","correlation_id":"<CORRELATION_UUID>"}'
+```
+
+**Status `FECHADO`:**
+
+```bash
+curl --request PATCH \
+  --url 'https://<API_HOST>/api/v1/erp/orders/<ORDER_ID>/status' \
+  --header 'Authorization: Bearer <ERP_API_KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{"status":"FECHADO","source_updated_at":"<SOURCE_UPDATED_AT_ISO_8601>","correlation_id":"<CORRELATION_UUID>"}'
+```
+
+**Status `FATURADO`:**
+
+```bash
+curl --request PATCH \
+  --url 'https://<API_HOST>/api/v1/erp/orders/<ORDER_ID>/status' \
+  --header 'Authorization: Bearer <ERP_API_KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{"status":"FATURADO","source_updated_at":"<SOURCE_UPDATED_AT_ISO_8601>","correlation_id":"<CORRELATION_UUID>"}'
+```
+
+**Status `REPROVADO`:**
+
+```bash
+curl --request PATCH \
+  --url 'https://<API_HOST>/api/v1/erp/orders/<ORDER_ID>/status' \
+  --header 'Authorization: Bearer <ERP_API_KEY>' \
+  --header 'Content-Type: application/json' \
+  --data '{"status":"REPROVADO","source_updated_at":"<SOURCE_UPDATED_AT_ISO_8601>","correlation_id":"<CORRELATION_UUID>"}'
+```
+
+## Escopo explicitamente fora da Fase 5
+
+Não fazem parte deste contrato: push/callback/webhook ou retentativa automática
+de entrega; criação, edição, finalização ou aprovação de pedidos pelo ERP;
+cancelamento, estorno, devolução e estoque; fiscal/impostos, emissão de nota,
+pagamento, frete e regras de faturamento; e recalcular ou substituir snapshots,
+preços, descontos, quantidades e totais durante a exportação.

@@ -12,7 +12,9 @@ Os lotes ERP, inclusive tabelas de preço e seus itens, retornam contadores, `it
 Sistema web mobile-first para representantes comerciais criarem e acompanharem
 orçamentos. A Fase 1 entrega autenticação e autorização, a Fase 2 os cadastros
 sincronizados pelo ERP, a Fase 3 o motor de preços e a Fase 4 a digitação,
-totalização e finalização imutável dos pedidos.
+totalização e finalização imutável dos pedidos. A Fase 5 entrega ao ERP a
+integração de saída **pull-based** dos pedidos finalizados e o retorno de sua
+confirmação e de seus status comerciais.
 
 ## Fase 2 — catálogo sincronizado
 
@@ -66,6 +68,35 @@ consulta todos os pedidos, sem permissão de escrita.
 A integração de saída de pedidos com o ERP, confirmação, faturamento e estados
 comerciais posteriores permanecem fora do escopo desta fase.
 
+## Fase 5 — integração de saída com o ERP
+
+O ERP consulta, com sua API key, a fila de pedidos `SUBMITTED` ainda não
+confirmados; a aplicação não faz callback, webhook nem tentativa automática de
+envio. O ciclo é:
+
+1. `GET /api/v1/erp/orders/submitted` lê a fila paginada, ordenada por
+   `submitted_at` e `id`;
+2. `GET /api/v1/erp/orders/:id` obtém o snapshot congelado para importação;
+3. `POST /api/v1/erp/orders/:id/confirm` confirma a importação;
+4. `PATCH /api/v1/erp/orders/:id/status` devolve um dos status comerciais
+   `EM_ANALISE`, `APROVADO`, `FECHADO`, `FATURADO` ou `REPROVADO`.
+
+As quatro rotas exigem `Authorization: Bearer <ERP_API_KEY>`. A fila usa
+`page=1` e `pageSize=50` por padrão, aceita no máximo 100 itens e responde com
+`page_size`, `total_items` e `total_pages`. A confirmação é idempotente quando
+repetida com a mesma identidade ERP; número do pedido ou `erp_import_id`
+divergentes retornam `409`. Cada confirmação/status aceita `correlation_id`
+UUID opcional, que é devolvido e registrado para auditoria.
+
+O detalhe é uma leitura de snapshots: não recalcula catálogo, preços,
+descontos, quantidades ou totais. Decimais são strings, inclusive na UI, para
+preservar `NUMERIC(18,6)` nos unitários, `NUMERIC(18,4)` nas quantidades e
+`NUMERIC(20,2)` nos totais. A interface exibe o status ERP em português, o
+número do pedido ERP, a data de integração e o histórico de status.
+
+Consulte `docs/ERP_API.md` para todos os endpoints, payloads `snake_case`,
+respostas e exemplos `curl` completos.
+
 ## Executar
 
 Os workflows gerenciados iniciam:
@@ -105,4 +136,4 @@ Defina `BETTER_AUTH_URL` com a origem pública exata da aplicação, por exemplo
 `https://pedidos.exemplo.com.br`. A API interrompe a inicialização em produção
 quando essa configuração estiver ausente, evitando aceitar origens genéricas.
 
-Consulte `docs/` para arquitetura, banco, regras e contratos ERP das Fases 2 a 4.
+Consulte `docs/` para arquitetura, banco, regras e contratos ERP das Fases 2 a 5.

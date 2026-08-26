@@ -10,6 +10,7 @@ import type { MoneyTotal } from './moneyTotal';
 import type { OrderDetailErpStatus } from './orderDetailErpStatus';
 import type { OrderDetailInternalStatus } from './orderDetailInternalStatus';
 import type { OrderItem } from './orderItem';
+import type { OrderStatusHistory } from './orderStatusHistory';
 
 export interface OrderDetail {
   id: string;
@@ -33,9 +34,13 @@ export interface OrderDetail {
   /** @nullable */
   erpOrderNumber: string | null;
   /** @nullable */
+  erpImportId: string | null;
+  /** @nullable */
   submittedAt: Date | null;
   /** @nullable */
   erpSyncedAt: Date | null;
+  /** @nullable */
+  erpLastStatusAt: Date | null;
   createdByUserId: string;
   version: number;
   createdAt: Date;
@@ -49,4 +54,5 @@ export interface OrderDetail {
   /** @nullable */
   carrierErpCode: string | null;
   items: OrderItem[];
+  statusHistory: OrderStatusHistory[];
 }

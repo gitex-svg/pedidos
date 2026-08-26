@@ -375,6 +375,65 @@ paths:
         "207": { $ref: "#/components/responses/SyncResult" }
         "400": { description: Lote inválido, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
         "401": { description: API key ausente ou inválida, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+  /v1/erp/orders/submitted:
+    get:
+      operationId: listSubmittedErpOrders
+      tags: [erp]
+      summary: Lista deterministicamente pedidos submetidos ainda não confirmados
+      security: [{ erpApiKey: [] }]
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        "200": { description: Fila pendente ordenada por submitted_at e id, content: { application/json: { schema: { $ref: "#/components/schemas/ErpSubmittedOrderPage" } } } }
+        "400": { description: Paginação inválida, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "401": { description: Bearer API key ausente ou inválida, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+  /v1/erp/orders/{id}:
+    get:
+      operationId: getErpOrder
+      tags: [erp]
+      summary: Obtém o snapshot persistido de um pedido submetido
+      description: Não recalcula preços, descontos ou totais e não confirma a importação.
+      security: [{ erpApiKey: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrderId" }]
+      responses:
+        "200": { description: Pedido congelado; decimais são strings, content: { application/json: { schema: { $ref: "#/components/schemas/ErpOrderDetail" } } } }
+        "400": { description: Identificador inválido, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "401": { description: Bearer API key ausente ou inválida, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "404": { description: Pedido submetido não encontrado, content: { application/json: { schema: { $ref: "#/components/schemas/ErpOrderError" } } } }
+        "500": { description: Erro de persistência, content: { application/json: { schema: { $ref: "#/components/schemas/ErpOrderError" } } } }
+  /v1/erp/orders/{id}/confirm:
+    post:
+      operationId: confirmErpOrder
+      tags: [erp]
+      summary: Confirma transacionalmente a importação no ERP
+      description: Repetições com a mesma identidade são idempotentes; um número ERP ou identificador de importação conflitante retorna 409.
+      security: [{ erpApiKey: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrderId" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ErpOrderConfirmInput" } } } }
+      responses:
+        "200": { description: Confirmação aplicada ou já processada, content: { application/json: { schema: { $ref: "#/components/schemas/ErpOrderMutationResult" } } } }
+        "400": { description: Identificador ou payload inválido, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "401": { description: Bearer API key ausente ou inválida, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "404": { description: Pedido não encontrado, content: { application/json: { schema: { $ref: "#/components/schemas/ErpOrderError" } } } }
+        "409": { description: Pedido não submetido ou identidade ERP conflitante, content: { application/json: { schema: { $ref: "#/components/schemas/ErpOrderError" } } } }
+        "500": { description: Erro de persistência, content: { application/json: { schema: { $ref: "#/components/schemas/ErpOrderError" } } } }
+  /v1/erp/orders/{id}/status:
+    patch:
+      operationId: updateErpOrderStatus
+      tags: [erp]
+      summary: Atualiza o status comercial do ERP
+      description: Timestamps iguais ou anteriores são ignorados. O mesmo status não duplica histórico.
+      security: [{ erpApiKey: [] }]
+      parameters: [{ $ref: "#/components/parameters/OrderId" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/ErpOrderStatusInput" } } } }
+      responses:
+        "200": { description: Mudança aplicada ou ignorada, content: { application/json: { schema: { $ref: "#/components/schemas/ErpOrderMutationResult" } } } }
+        "400": { description: "Identificador, payload ou status inválido", content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "401": { description: Bearer API key ausente ou inválida, content: { application/json: { schema: { $ref: "#/components/schemas/ErrorResponse" } } } }
+        "404": { description: Pedido não encontrado, content: { application/json: { schema: { $ref: "#/components/schemas/ErpOrderError" } } } }
+        "409": { description: Pedido não submetido, content: { application/json: { schema: { $ref: "#/components/schemas/ErpOrderError" } } } }
+        "500": { description: Erro de persistência, content: { application/json: { schema: { $ref: "#/components/schemas/ErpOrderError" } } } }
 components:
   securitySchemes:
     sessionCookie: { type: apiKey, in: cookie, name: better-auth.session_token }
@@ -426,7 +485,7 @@ components:
       type: object
       additionalProperties: false
       description: Snapshot imutável do produto e preço no momento da inclusão.
-      required: [id, orderId, productId, groupCode, typeCode, productCode, referenceCode, productCodeSnapshot, descriptionSnapshot, packagingSnapshot, widthSnapshot, colorSnapshot, quantity, suggestedUnitPrice, suggestedPriceOrigin, suggestedPriceTableId, suggestedPriceTableErpCode, effectiveUnitPrice, effectivePriceOrigin, isSpecialPrice, specialUnitPrice, discount1, discount2, discount3, discount4, discountsApplied, netUnitPrice, grossTotal, netTotal, createdAt, updatedAt]
+      required: [id, orderId, productId, groupCode, typeCode, productCode, referenceCode, productCodeSnapshot, productErpIdSnapshot, descriptionSnapshot, packagingSnapshot, widthSnapshot, colorSnapshot, quantity, suggestedUnitPrice, suggestedPriceOrigin, suggestedPriceTableId, suggestedPriceTableErpCode, effectiveUnitPrice, effectivePriceOrigin, isSpecialPrice, specialUnitPrice, discount1, discount2, discount3, discount4, discountsApplied, netUnitPrice, grossTotal, netTotal, createdAt, updatedAt]
       properties:
         id: { type: string, format: uuid }
         orderId: { type: string, format: uuid }
@@ -436,6 +495,7 @@ components:
         productCode: { type: string }
         referenceCode: { type: string }
         productCodeSnapshot: { type: string }
+        productErpIdSnapshot: { type: string }
         descriptionSnapshot: { type: string }
         packagingSnapshot: { type: [string, "null"] }
         widthSnapshot: { type: [string, "null"] }
@@ -463,7 +523,7 @@ components:
       type: object
       additionalProperties: false
       description: Ordem persistida; identidade, estado, totais e snapshots são gerados exclusivamente pelo servidor.
-      required: [id, internalNumber, representativeId, customerId, paymentTermId, carrierId, notes, discount1, discount2, discount3, discount4, grossTotal, netTotal, internalStatus, erpStatus, erpOrderNumber, submittedAt, erpSyncedAt, createdByUserId, version, createdAt, updatedAt, customerName, customerErpCode, paymentTermDescription, paymentTermErpCode, carrierName, carrierErpCode]
+      required: [id, internalNumber, representativeId, customerId, paymentTermId, carrierId, notes, discount1, discount2, discount3, discount4, grossTotal, netTotal, internalStatus, erpStatus, erpOrderNumber, erpImportId, submittedAt, erpSyncedAt, erpLastStatusAt, createdByUserId, version, createdAt, updatedAt, customerName, customerErpCode, paymentTermDescription, paymentTermErpCode, carrierName, carrierErpCode]
       properties:
         id: { type: string, format: uuid }
         internalNumber: { type: number }
@@ -481,8 +541,10 @@ components:
         internalStatus: { type: string, enum: [DRAFT, SUBMITTED] }
         erpStatus: { type: [string, "null"], enum: [EM_ANALISE, APROVADO, FECHADO, FATURADO, REPROVADO, null] }
         erpOrderNumber: { type: [string, "null"] }
+        erpImportId: { type: [string, "null"] }
         submittedAt: { type: [string, "null"], format: date-time }
         erpSyncedAt: { type: [string, "null"], format: date-time }
+        erpLastStatusAt: { type: [string, "null"], format: date-time }
         createdByUserId: { type: string, format: uuid }
         version: { type: integer }
         createdAt: { type: string, format: date-time }
@@ -496,7 +558,7 @@ components:
     OrderDetail:
       type: object
       additionalProperties: false
-      required: [id, internalNumber, representativeId, customerId, paymentTermId, carrierId, notes, discount1, discount2, discount3, discount4, grossTotal, netTotal, internalStatus, erpStatus, erpOrderNumber, submittedAt, erpSyncedAt, createdByUserId, version, createdAt, updatedAt, customerName, customerErpCode, paymentTermDescription, paymentTermErpCode, carrierName, carrierErpCode, items]
+      required: [id, internalNumber, representativeId, customerId, paymentTermId, carrierId, notes, discount1, discount2, discount3, discount4, grossTotal, netTotal, internalStatus, erpStatus, erpOrderNumber, erpImportId, submittedAt, erpSyncedAt, erpLastStatusAt, createdByUserId, version, createdAt, updatedAt, customerName, customerErpCode, paymentTermDescription, paymentTermErpCode, carrierName, carrierErpCode, items, statusHistory]
       properties:
         id: { type: string, format: uuid }
         internalNumber: { type: number }
@@ -514,8 +576,10 @@ components:
         internalStatus: { type: string, enum: [DRAFT, SUBMITTED] }
         erpStatus: { type: [string, "null"], enum: [EM_ANALISE, APROVADO, FECHADO, FATURADO, REPROVADO, null] }
         erpOrderNumber: { type: [string, "null"] }
+        erpImportId: { type: [string, "null"] }
         submittedAt: { type: [string, "null"], format: date-time }
         erpSyncedAt: { type: [string, "null"], format: date-time }
+        erpLastStatusAt: { type: [string, "null"], format: date-time }
         createdByUserId: { type: string, format: uuid }
         version: { type: integer }
         createdAt: { type: string, format: date-time }
@@ -527,6 +591,7 @@ components:
         carrierName: { type: [string, "null"] }
         carrierErpCode: { type: [string, "null"] }
         items: { type: array, items: { $ref: "#/components/schemas/OrderItem" } }
+        statusHistory: { type: array, items: { $ref: "#/components/schemas/OrderStatusHistory" } }
     OrderPage:
       type: object
       additionalProperties: false
@@ -537,6 +602,137 @@ components:
         totalItems: { type: integer }
         totalPages: { type: integer }
         items: { type: array, items: { $ref: "#/components/schemas/Order" } }
+    OrderStatusHistory:
+      type: object
+      additionalProperties: false
+      required: [id, orderId, statusType, previousStatus, newStatus, source, correlationId, sourceUpdatedAt, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        orderId: { type: string, format: uuid }
+        statusType: { type: string, enum: [INTERNAL, ERP] }
+        previousStatus: { type: [string, "null"] }
+        newStatus: { type: string }
+        source: { type: string, enum: [SYSTEM, REPRESENTATIVE, ERP, ADMIN] }
+        correlationId: { type: [string, "null"], format: uuid }
+        sourceUpdatedAt: { type: [string, "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+    ErpOrderStatus: { type: string, enum: [EM_ANALISE, APROVADO, FECHADO, FATURADO, REPROVADO] }
+    ErpSubmittedOrder:
+      type: object
+      additionalProperties: false
+      required: [id, internal_number, submitted_at, representative_erp_code, customer_erp_code, gross_total, net_total]
+      properties:
+        id: { type: string, format: uuid }
+        internal_number: { type: integer }
+        submitted_at: { type: string, format: date-time }
+        representative_erp_code: { type: string }
+        customer_erp_code: { type: string }
+        gross_total: { $ref: "#/components/schemas/MoneyTotal" }
+        net_total: { $ref: "#/components/schemas/MoneyTotal" }
+    ErpSubmittedOrderPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, page_size, total_items, total_pages]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/ErpSubmittedOrder" } }
+        page: { type: integer }
+        page_size: { type: integer }
+        total_items: { type: integer }
+        total_pages: { type: integer }
+    ErpOrderItem:
+      type: object
+      additionalProperties: false
+      required: [id, product_erp_id, group_code, type_code, product_code, reference_code, product_code_snapshot, description_snapshot, packaging_snapshot, width_snapshot, color_snapshot, quantity, suggested_unit_price, suggested_price_origin, suggested_price_table_erp_code, effective_unit_price, effective_price_origin, is_special_price, special_unit_price, discount1, discount2, discount3, discount4, discounts_applied, net_unit_price, gross_total, net_total]
+      properties:
+        id: { type: string, format: uuid }
+        product_erp_id: { type: string }
+        group_code: { type: string }
+        type_code: { type: string }
+        product_code: { type: string }
+        reference_code: { type: string }
+        product_code_snapshot: { type: string }
+        description_snapshot: { type: string }
+        packaging_snapshot: { type: [string, "null"] }
+        width_snapshot: { type: [string, "null"] }
+        color_snapshot: { type: [string, "null"] }
+        quantity: { type: string }
+        suggested_unit_price: { $ref: "#/components/schemas/UnitPriceOutput" }
+        suggested_price_origin: { $ref: "#/components/schemas/PriceOrigin" }
+        suggested_price_table_erp_code: { type: [string, "null"] }
+        effective_unit_price: { $ref: "#/components/schemas/UnitPriceOutput" }
+        effective_price_origin: { type: string, enum: [CUSTOMER, REPRESENTATIVE, STANDARD, SPECIAL] }
+        is_special_price: { type: boolean }
+        special_unit_price: { anyOf: [{ $ref: "#/components/schemas/UnitPriceOutput" }, { type: "null" }] }
+        discount1: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount2: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount3: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount4: { $ref: "#/components/schemas/DecimalDiscount" }
+        discounts_applied: { type: boolean }
+        net_unit_price: { $ref: "#/components/schemas/UnitPriceOutput" }
+        gross_total: { $ref: "#/components/schemas/MoneyTotal" }
+        net_total: { $ref: "#/components/schemas/MoneyTotal" }
+    ErpOrderDetail:
+      type: object
+      additionalProperties: false
+      required: [id, internal_number, created_at, submitted_at, representative_erp_code, customer_erp_code, payment_term_erp_code, carrier_erp_code, notes, discount1, discount2, discount3, discount4, gross_total, net_total, erp_order_number, erp_import_id, erp_synced_at, erp_status, items]
+      properties:
+        id: { type: string, format: uuid }
+        internal_number: { type: integer }
+        created_at: { type: string, format: date-time }
+        submitted_at: { type: string, format: date-time }
+        representative_erp_code: { type: string }
+        customer_erp_code: { type: string }
+        payment_term_erp_code: { type: string }
+        carrier_erp_code: { type: [string, "null"] }
+        notes: { type: [string, "null"] }
+        discount1: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount2: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount3: { $ref: "#/components/schemas/DecimalDiscount" }
+        discount4: { $ref: "#/components/schemas/DecimalDiscount" }
+        gross_total: { $ref: "#/components/schemas/MoneyTotal" }
+        net_total: { $ref: "#/components/schemas/MoneyTotal" }
+        erp_order_number: { type: [string, "null"] }
+        erp_import_id: { type: [string, "null"] }
+        erp_synced_at: { type: [string, "null"], format: date-time }
+        erp_status: { anyOf: [{ $ref: "#/components/schemas/ErpOrderStatus" }, { type: "null" }] }
+        items: { type: array, items: { $ref: "#/components/schemas/ErpOrderItem" } }
+    ErpOrderConfirmInput:
+      type: object
+      additionalProperties: false
+      required: [erp_order_number, source_updated_at]
+      properties:
+        erp_order_number: { type: string, minLength: 1, maxLength: 128 }
+        erp_import_id: { type: string, minLength: 1, maxLength: 128, description: Identificador idempotente opcional e globalmente único. }
+        status: { $ref: "#/components/schemas/ErpOrderStatus" }
+        source_updated_at: { type: string, format: date-time }
+        correlation_id: { type: string, format: uuid }
+    ErpOrderStatusInput:
+      type: object
+      additionalProperties: false
+      required: [status, source_updated_at]
+      properties:
+        status: { $ref: "#/components/schemas/ErpOrderStatus" }
+        source_updated_at: { type: string, format: date-time }
+        correlation_id: { type: string, format: uuid }
+    ErpOrderMutationResult:
+      type: object
+      additionalProperties: false
+      required: [correlation_id, result, erp_status]
+      properties:
+        correlation_id: { type: string, format: uuid }
+        result: { type: string, enum: [updated, ignored] }
+        reason: { type: string, enum: [ALREADY_CONFIRMED, STALE_SOURCE_VERSION, STATUS_UNCHANGED] }
+        erp_order_number: { type: string }
+        erp_import_id: { type: [string, "null"] }
+        erp_synced_at: { type: string, format: date-time }
+        erp_status: { anyOf: [{ $ref: "#/components/schemas/ErpOrderStatus" }, { type: "null" }] }
+    ErpOrderError:
+      type: object
+      required: [error, code, correlation_id]
+      properties:
+        error: { type: string }
+        code: { type: string, enum: [ORDER_NOT_FOUND, ORDER_NOT_SUBMITTED, ERP_ORDER_NUMBER_CONFLICT, ERP_IMPORT_ID_CONFLICT, PERSISTENCE_ERROR] }
+        correlation_id: { type: string, format: uuid }
     LoginInput:
       type: object
       properties:

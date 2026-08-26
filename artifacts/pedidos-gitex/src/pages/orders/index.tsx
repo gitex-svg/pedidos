@@ -11,9 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useGetCurrentUser } from '@workspace/api-client-react';
 import { formatMoney, formatNumberBR } from '@/lib/format';
 import { Link, useLocation } from 'wouter';
-import { Search, Plus, Filter, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, Filter, FileText, ChevronLeft, ChevronRight, RefreshCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { ErpStatusBadge, ErpDateDisplay } from '@/components/erp-status-badge';
 
 export default function Orders() {
   const [, setLocation] = useLocation();
@@ -142,9 +143,9 @@ export default function Orders() {
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>
-                  <TableHead className="w-[100px] font-mono-brand text-xs uppercase tracking-wider">Número</TableHead>
+                  <TableHead className="w-[120px] font-mono-brand text-xs uppercase tracking-wider">Número</TableHead>
                   <TableHead className="font-mono-brand text-xs uppercase tracking-wider">Cliente</TableHead>
-                  <TableHead className="font-mono-brand text-xs uppercase tracking-wider">Data</TableHead>
+                  <TableHead className="font-mono-brand text-xs uppercase tracking-wider">Datas / Integração</TableHead>
                   <TableHead className="font-mono-brand text-xs uppercase tracking-wider text-right">Líquido</TableHead>
                   <TableHead className="font-mono-brand text-xs uppercase tracking-wider">Status</TableHead>
                 </TableRow>
@@ -169,36 +170,48 @@ export default function Orders() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  ordersPage.items.map((order) => (
+                  ordersPage.items.map((orderAny: any) => {
+                    const order = orderAny;
+                    return (
                     <TableRow
                       key={order.id}
                       className="cursor-pointer hover:bg-muted/30 transition-colors"
                       onClick={() => setLocation(`/orders/${order.id}`)}
                       data-testid={`row-order-${order.id}`}
                     >
-                      <TableCell className="font-mono-brand font-medium">#{order.internalNumber}</TableCell>
+                      <TableCell>
+                        <div className="font-mono-brand font-medium">#{order.internalNumber}</div>
+                         {order.erpOrderNumber && (
+                          <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                             ERP: <span className="font-mono-brand">{order.erpOrderNumber}</span>
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <div className="font-medium text-foreground">{order.customerName}</div>
                         <div className="text-xs text-muted-foreground">{order.customerErpCode}</div>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {format(new Date(order.createdAt), 'dd/MM/yyyy', { locale: ptBR })}
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <ErpDateDisplay date={order.createdAt} label="Criado" />
+                          <ErpDateDisplay date={order.submittedAt} label="Enviado" />
+                           <ErpDateDisplay date={order.erpSyncedAt} label="Integração" className="text-primary/80" />
+                        </div>
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         {formatMoney(order.netTotal)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={order.internalStatus === 'SUBMITTED' ? 'default' : 'secondary'}>
-                          {order.internalStatus === 'SUBMITTED' ? 'Enviado' : 'Rascunho'}
-                        </Badge>
-                        {order.erpStatus && (
-                          <Badge variant="outline" className="ml-2 bg-transparent text-[10px]">
-                            {order.erpStatus}
+                        <div className="flex flex-col items-start gap-1.5">
+                          <Badge variant={order.internalStatus === 'SUBMITTED' ? 'default' : 'secondary'}>
+                            {order.internalStatus === 'SUBMITTED' ? 'Enviado' : 'Rascunho'}
                           </Badge>
-                        )}
+                          <ErpStatusBadge status={order.erpStatus} className="text-[10px] py-0 h-5" />
+                        </div>
                       </TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 )}
               </TableBody>
             </Table>
@@ -218,7 +231,9 @@ export default function Orders() {
                 Nenhum orçamento encontrado.
               </div>
             ) : (
-              ordersPage.items.map((order) => (
+              ordersPage.items.map((orderAny: any) => {
+                const order = orderAny;
+                return (
                 <div
                   key={order.id}
                   className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm cursor-pointer hover:border-primary/50 transition-colors"
@@ -227,32 +242,39 @@ export default function Orders() {
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <span className="font-mono-brand font-medium">#{order.internalNumber}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono-brand font-medium">#{order.internalNumber}</span>
+                         {order.erpOrderNumber && (
+                          <span className="text-[10px] text-muted-foreground border px-1 rounded bg-muted/30">
+                             ERP: {order.erpOrderNumber}
+                          </span>
+                        )}
+                      </div>
                       <div className="mt-1 font-medium text-foreground">{order.customerName}</div>
                       <div className="text-xs text-muted-foreground">{order.customerErpCode}</div>
                     </div>
-                    <Badge variant={order.internalStatus === 'SUBMITTED' ? 'default' : 'secondary'}>
-                      {order.internalStatus === 'SUBMITTED' ? 'Enviado' : 'Rascunho'}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant={order.internalStatus === 'SUBMITTED' ? 'default' : 'secondary'}>
+                        {order.internalStatus === 'SUBMITTED' ? 'Enviado' : 'Rascunho'}
+                      </Badge>
+                      <ErpStatusBadge status={order.erpStatus} className="text-[10px] py-0 h-5" />
+                    </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      {format(new Date(order.createdAt), 'dd/MM/yyyy', { locale: ptBR })}
-                    </span>
-                    <span className="font-medium text-primary">
-                      {formatMoney(order.netTotal)}
-                    </span>
-                  </div>
-                  {order.erpStatus && (
-                    <div className="pt-2 border-t border-border mt-1">
-                      <Badge variant="outline" className="bg-transparent text-[10px]">
-                        {order.erpStatus}
-                      </Badge>
+                  <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-border/50">
+                    <ErpDateDisplay date={order.createdAt} label="Criado" />
+                    <ErpDateDisplay date={order.submittedAt} label="Enviado" />
+                     <ErpDateDisplay date={order.erpSyncedAt} label="Integração" className="text-primary/80" />
+                    <div className="flex flex-col text-xs items-end justify-end col-start-2 row-start-1 row-span-2">
+                      <span className="text-muted-foreground mb-1">Líquido</span>
+                      <span className="font-medium text-primary text-base">
+                        {formatMoney(order.netTotal)}
+                      </span>
                     </div>
-                  )}
+                  </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
 

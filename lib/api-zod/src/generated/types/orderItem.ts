@@ -23,6 +23,7 @@ export interface OrderItem {
   productCode: string;
   referenceCode: string;
   productCodeSnapshot: string;
+  productErpIdSnapshot: string;
   descriptionSnapshot: string;
   /** @nullable */
   packagingSnapshot: string | null;

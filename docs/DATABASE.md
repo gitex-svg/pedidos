@@ -77,3 +77,42 @@ Preço unitário usa `NUMERIC(18,6)`: até 12 dígitos inteiros e 6 fracionário
 Na API e no driver ele é string decimal; a entrada aceita zeros à esquerda e o
 servidor preserva a parte inteira, preenchendo a fração até seis casas na saída.
 Não se usa float/double nem `number` JavaScript para valores monetários.
+
+## Fase 5 — saída de pedidos e auditoria ERP
+
+A migration manual `0009_phase_5_erp_orders.sql` acrescenta:
+
+- `orders.erp_import_id` (único), `orders.erp_last_status_at` e o índice de
+  fila `(internal_status, erp_synced_at, submitted_at, id)`;
+- `order_items.product_erp_id_snapshot`, preenchido a partir do produto
+  existente e tornado obrigatório, para que a saída ERP não dependa de uma
+  nova consulta ao catálogo;
+- `order_status_history`, com tipo de status (`INTERNAL`/`ERP`), status
+  anterior/novo, origem, `correlation_id`, `source_updated_at` e criação;
+- índices por pedido/ordem de criação e por `correlation_id` no histórico;
+- backfill do evento interno `DRAFT → SUBMITTED` para pedidos já finalizados.
+
+A migration `0010_woozy_prima.sql` é o **checkpoint do snapshot do schema**
+posterior à migration manual 0009; ela não contém mudanças executáveis nem
+backfill adicional. As duas migrations devem permanecer na sequência para que
+ambientes novos e existentes tenham o mesmo histórico.
+
+A migration `0011_wise_impossible_man.sql` acrescenta os snapshots dos códigos
+ERP de representante, cliente, condição de pagamento e transportadora na capa.
+Ela preenche pedidos `SUBMITTED` existentes e cria uma restrição que impede um
+pedido finalizado sem os três códigos obrigatórios. A transportadora permanece
+opcional.
+
+`erp_synced_at` marca a confirmação de importação e define a remoção da fila
+pull; não reabre nem recalcula o pedido. `erp_order_number` deve ser estável por
+pedido, enquanto `erp_import_id`, quando utilizado, é globalmente único. O
+serviço bloqueia a linha do pedido na confirmação/status e aplica o checkpoint
+`erp_last_status_at`: eventos ERP com `source_updated_at` menor ou igual são
+ignorados. Evento com data mais nova e status igual apenas atualiza esse
+checkpoint, sem inserir outra linha de histórico.
+
+Os snapshots do cabeçalho e itens são a fonte da exportação. Quantidade é
+`NUMERIC(18,4)`, preço unitário/sugerido/líquido é `NUMERIC(18,6)`, descontos
+são `NUMERIC(7,4)` e totais são `NUMERIC(20,2)`. Drivers e API os mantêm como
+strings; não há recalculação nem conversão para ponto flutuante durante a
+integração.
