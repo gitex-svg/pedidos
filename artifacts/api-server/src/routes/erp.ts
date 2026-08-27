@@ -8,12 +8,12 @@ import { eq, or, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { loadConfig } from "../lib/config";
 import { requireErpApiKey } from "../middlewares/erp-api-key";
-import { BoundedRateLimiter, limitErp } from "../middlewares/rate-limit";
+import { createErpLimiter, limitErp } from "../middlewares/rate-limit";
 import { ErpOrderError, erpOrderService } from "../services/erp-integration-service";
 
 const router: IRouter = Router();
 const config = loadConfig(process.env, { requirePort: false });
-const erpLimiter = new BoundedRateLimiter(config.erpRateLimitMax, config.erpRateLimitWindowMs);
+const erpLimiter = createErpLimiter(config);
 router.use("/v1/erp", requireErpApiKey, limitErp(erpLimiter));
 const code = z.string().trim().min(1).max(128);
 const sourceUpdatedAt = z.coerce.date();

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BoundedRateLimiter, limitErp, rateLimit } from "./rate-limit";
+import { loadConfig } from "../lib/config";
+import { BoundedRateLimiter, createErpLimiter, limitErp, rateLimit } from "./rate-limit";
 
 function request(erpRateLimitKey?: string) {
   return {
@@ -58,7 +59,14 @@ test("rate-limit responses include standard capacity headers", () => {
 });
 
 test("ERP rate-limit applies only after a validated ERP credential supplies a key", () => {
-  const middleware = limitErp(new BoundedRateLimiter(2, 1_000));
+  const config = loadConfig({
+    DATABASE_URL: "postgres://user:password@localhost:5432/gitex",
+    SESSION_SECRET: "a".repeat(32),
+    ERP_API_KEY: "erp-test-key",
+    ERP_RATE_LIMIT_MAX: "2",
+    ERP_RATE_LIMIT_WINDOW_MS: "1000",
+  }, { requirePort: false });
+  const middleware = limitErp(createErpLimiter(config));
 
   const missingCredential = response();
   middleware(request(), missingCredential.value, (() => assert.fail()) as never);

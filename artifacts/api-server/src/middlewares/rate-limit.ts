@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import type { AppConfig } from "../lib/config";
 
 interface Entry { count: number; resetAt: number; }
 export interface RateLimitState {
@@ -44,6 +45,10 @@ export class BoundedRateLimiter {
 
 function clientIp(req: Request) { return req.ip || req.socket.remoteAddress || "unknown"; }
 export const loginLimiter = new BoundedRateLimiter(5, 15 * 60_000);
+
+export function createErpLimiter(config: Pick<AppConfig, "erpRateLimitMax" | "erpRateLimitWindowMs">) {
+  return new BoundedRateLimiter(config.erpRateLimitMax, config.erpRateLimitWindowMs);
+}
 
 export function rateLimit(limiter: BoundedRateLimiter, key: (req: Request) => string) {
   return (req: Request, res: Response, next: NextFunction): void => {
