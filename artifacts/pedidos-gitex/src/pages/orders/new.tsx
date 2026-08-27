@@ -10,6 +10,8 @@ import {
   useListPaymentTerms,
   useListCarriers,
   getListCustomersQueryKey,
+  getGetDashboardSummaryQueryKey,
+  getGetOrderQueryKey,
   getListOrdersQueryKey,
   Customer
 } from '@workspace/api-client-react';
@@ -103,7 +105,9 @@ export default function OrderNew() {
       { data: { ...data, carrierId, notes: data.notes || null } },
       {
         onSuccess: (order) => {
+          queryClient.setQueryData(getGetOrderQueryKey(order.id), order);
           queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
           toast({ title: "Orçamento criado com sucesso!" });
           setLocation(`/orders/${order.id}`);
         },

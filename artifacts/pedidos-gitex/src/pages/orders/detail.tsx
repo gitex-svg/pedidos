@@ -35,7 +35,7 @@ import { useToast } from '@/hooks/use-toast';
 import { formatMoney, formatUnitPrice, formatNumberBR, subtractMoney, validateAndFormatQuantity, validateAndFormatUnitPrice } from '@/lib/format';
 import { Loader2, ArrowLeft, Search, Plus, Save, Trash2, Edit2, AlertCircle } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { getGetOrderQueryKey, getResolvePriceQueryKey, getListOrdersQueryKey } from '@workspace/api-client-react';
+import { getGetDashboardSummaryQueryKey, getGetOrderQueryKey, getResolvePriceQueryKey, getListOrdersQueryKey } from '@workspace/api-client-react';
 import { ErpStatusBadge, ErpDateDisplay, getErpStatusConfig } from '@/components/erp-status-badge';
 import { getOrderErrorMessage } from '@/lib/order-error';
 import { SubmissionLock } from '@/lib/submission-lock';
@@ -183,6 +183,7 @@ function SubmitOrderButton({ orderId, version }: { orderId: string, version: num
           queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
           toast({ title: "Pedido finalizado com sucesso!" });
           queryClient.setQueryData(getGetOrderQueryKey(orderId), updated);
+          queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         },
         onError: (err: any) => {
           toast({ title: "Não foi possível finalizar o pedido", description: getOrderErrorMessage(err), variant: "destructive" });
@@ -382,6 +383,7 @@ function OrderHeaderSection({ order, canEdit }: { order: any, canEdit: boolean }
           toast({ title: "Cabeçalho atualizado." });
           queryClient.setQueryData(getGetOrderQueryKey(order.id), updated);
           queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         },
         onError: (err: any) => {
           toast({ title: "Não foi possível salvar as alterações", description: getOrderErrorMessage(err), variant: "destructive" });
@@ -754,6 +756,7 @@ function AddItemDialog({ order }: { order: any }) {
           toast({ title: "Produto adicionado." });
           queryClient.setQueryData(getGetOrderQueryKey(order.id), updated);
           queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
           setOpen(false);
         },
         onError: (err: any) => {
@@ -978,6 +981,7 @@ function EditItemDialog({ order, item }: { order: any, item: OrderItem }) {
           toast({ title: "Item atualizado." });
           queryClient.setQueryData(getGetOrderQueryKey(order.id), updated);
           queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
           setOpen(false);
         },
         onError: (err: any) => {
@@ -1100,6 +1104,7 @@ function DeleteItemButton({ orderId, itemId, version }: { orderId: string, itemI
           toast({ title: "Item removido." });
           queryClient.setQueryData(getGetOrderQueryKey(orderId), updated);
           queryClient.invalidateQueries({ queryKey: getListOrdersQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         },
         onError: (err: any) => {
           toast({ title: "Não foi possível remover o item", description: getOrderErrorMessage(err), variant: "destructive" });

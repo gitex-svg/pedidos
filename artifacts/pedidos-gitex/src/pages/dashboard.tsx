@@ -137,7 +137,16 @@ export default function Dashboard() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const currentUser = useGetCurrentUser({ query: { retry: false, queryKey: getGetCurrentUserQueryKey() } });
-  const summary = useGetDashboardSummary({ query: { enabled: !!currentUser.data, retry: false, queryKey: getGetDashboardSummaryQueryKey() } });
+  const summary = useGetDashboardSummary({
+    query: {
+      enabled: !!currentUser.data,
+      retry: false,
+      staleTime: 0,
+      refetchOnMount: true,
+      refetchOnWindowFocus: true,
+      queryKey: getGetDashboardSummaryQueryKey(),
+    },
+  });
   const health = useHealthCheck({ query: { retry: false, staleTime: 30000, queryKey: getHealthCheckQueryKey() } });
 
   useEffect(() => {

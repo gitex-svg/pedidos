@@ -3,3 +3,4 @@
 - [Arredondamento financeiro](financial-rounding.md) — itens arredondam a 2 casas; pedidos somam os totais de itens já arredondados.
 - [OpenAPI fechado e composição](openapi-closed-composition.md) — não combine objetos `allOf` que individualmente proíbem propriedades adicionais.
 - [Bloqueio de submissões no frontend](frontend-submission-locks.md) — use trava síncrona; `isPending` sozinho não impede dois eventos no mesmo ciclo.
+- [Resumo do dashboard](dashboard-status-summary.md) — os cinco cartões usam grupos mutuamente exclusivos para preservar a leitura da carteira.
