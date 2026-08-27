@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "create-admin": "tsx ./src/create-admin.ts",
+    "create-representative": "tsx ./src/create-representative.ts",
     "hello": "tsx ./src/hello.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

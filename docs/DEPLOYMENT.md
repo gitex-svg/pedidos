@@ -162,6 +162,20 @@ processo e execute `docker compose --env-file .env.production run --rm -T
 /app/dist/create-admin.mjs`; use canal seguro para os valores, remova-os do
 ambiente depois e não os registre no histórico.
 
+Para criar ou redefinir a senha de um representante já sincronizado pelo ERP,
+injete temporariamente `REPRESENTATIVE_ERP_CODE`, `REPRESENTATIVE_EMAIL` e
+`REPRESENTATIVE_PASSWORD` e execute:
+
+```bash
+docker compose --env-file .env.production run --rm -T --no-deps \
+  -e REPRESENTATIVE_ERP_CODE -e REPRESENTATIVE_EMAIL -e REPRESENTATIVE_PASSWORD \
+  app node --enable-source-maps /app/dist/create-representative.mjs
+```
+
+`REPRESENTATIVE_NAME` é opcional. Não registre esses valores no histórico ou nos
+logs e remova-os do ambiente após a execução. O comando recusa e-mails de ADMIN
+e não sobrescreve vínculos existentes de outro representante.
+
 ## Rollback
 
 Interrompa a promoção se migration, início da API, liveness ou smoke test falhar.

@@ -130,6 +130,22 @@ ADMIN_PASSWORD='uma-senha-forte' \
 pnpm run create-admin
 ```
 
+## Criar ou redefinir um REPRESENTATIVE
+
+O representante precisa existir primeiro por meio da sincronização ERP. Depois,
+use variáveis de ambiente temporárias; não grave senhas no repositório:
+
+```bash
+REPRESENTATIVE_ERP_CODE=REP-001 \
+REPRESENTATIVE_EMAIL=representante@empresa.com.br \
+REPRESENTATIVE_PASSWORD='uma-senha-forte' \
+pnpm run create-representative
+```
+
+`REPRESENTATIVE_NAME` é opcional. O comando cria ou reativa o usuário,
+redefine a credencial e vincula o usuário ao código ERP informado. Ele não
+converte usuários ADMIN nem substitui o vínculo de outro representante.
+
 ## Produção
 
 Defina `BETTER_AUTH_URL` com a origem pública exata da aplicação, por exemplo

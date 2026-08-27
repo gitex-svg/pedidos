@@ -19,6 +19,7 @@ async function buildAll() {
       index: path.resolve(artifactDir, "src/index.ts"),
       migrate: path.resolve(artifactDir, "src/operations/migrate.ts"),
       "create-admin": path.resolve(artifactDir, "../../scripts/src/create-admin.ts"),
+      "create-representative": path.resolve(artifactDir, "../../scripts/src/create-representative.ts"),
     },
     platform: "node",
     bundle: true,

@@ -177,6 +177,19 @@ linha de comando. Não há conta padrão. Em seguida, o dono do ERP deve fazer o
 autorizado com a `ERP_API_KEY` de produção; isso é uma operação coordenada e
 não deve ser simulada contra o ERP real sem autorização.
 
+Depois de o representante existir no banco por meio do sync ERP, crie ou
+redefina sua credencial com valores temporários injetados de forma segura:
+
+```bash
+docker compose --env-file .env.production run --rm -T --no-deps \
+  -e REPRESENTATIVE_ERP_CODE -e REPRESENTATIVE_EMAIL -e REPRESENTATIVE_PASSWORD \
+  app node --enable-source-maps /app/dist/create-representative.mjs
+```
+
+`REPRESENTATIVE_NAME` é opcional. O comando exige um representante ERP existente,
+recusa e-mails de ADMIN e não substitui o vínculo de outro usuário. Remova os
+valores do ambiente após a execução e não os registre no histórico.
+
 ## Atualização e rollback
 
 Para uma atualização, busque uma tag/revisão já aprovada, faça checkout
