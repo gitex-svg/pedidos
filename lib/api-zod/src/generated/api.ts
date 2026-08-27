@@ -133,7 +133,6 @@ export const listProductsQueryTypeCodeMax = 2;
 export const listProductsQueryProductCodeMin = 4;
 export const listProductsQueryProductCodeMax = 4;
 
-export const listProductsQueryReferenceCodeMin = 8;
 export const listProductsQueryReferenceCodeMax = 8;
 
 export const listProductsQueryOrderDefault = `asc`;
@@ -148,7 +147,7 @@ export const ListProductsQueryParams = zod.object({
   "group_code": zod.coerce.string().min(listProductsQueryGroupCodeMin).max(listProductsQueryGroupCodeMax).optional(),
   "type_code": zod.coerce.string().min(listProductsQueryTypeCodeMin).max(listProductsQueryTypeCodeMax).optional(),
   "product_code": zod.coerce.string().min(listProductsQueryProductCodeMin).max(listProductsQueryProductCodeMax).optional(),
-  "reference_code": zod.coerce.string().min(listProductsQueryReferenceCodeMin).max(listProductsQueryReferenceCodeMax).optional(),
+  "reference_code": zod.coerce.string().min(1).max(listProductsQueryReferenceCodeMax).optional(),
   "code": zod.coerce.string().optional(),
   "description": zod.coerce.string().optional(),
   "collection": zod.coerce.string().optional(),
@@ -1233,7 +1232,6 @@ export const syncProductsBodyItemsItemTwoTypeCodeMax = 2;
 export const syncProductsBodyItemsItemTwoProductCodeMin = 4;
 export const syncProductsBodyItemsItemTwoProductCodeMax = 4;
 
-export const syncProductsBodyItemsItemTwoReferenceCodeMin = 8;
 export const syncProductsBodyItemsItemTwoReferenceCodeMax = 8;
 
 export const syncProductsBodyItemsMax = 500;
@@ -1256,7 +1254,7 @@ export const SyncProductsBody = zod.object({
   "group_code": zod.string().min(syncProductsBodyItemsItemTwoGroupCodeMin).max(syncProductsBodyItemsItemTwoGroupCodeMax),
   "type_code": zod.string().min(syncProductsBodyItemsItemTwoTypeCodeMin).max(syncProductsBodyItemsItemTwoTypeCodeMax),
   "product_code": zod.string().min(syncProductsBodyItemsItemTwoProductCodeMin).max(syncProductsBodyItemsItemTwoProductCodeMax),
-  "reference_code": zod.string().min(syncProductsBodyItemsItemTwoReferenceCodeMin).max(syncProductsBodyItemsItemTwoReferenceCodeMax)
+  "reference_code": zod.string().min(1).max(syncProductsBodyItemsItemTwoReferenceCodeMax)
 }))).max(syncProductsBodyItemsMax)
 })
 

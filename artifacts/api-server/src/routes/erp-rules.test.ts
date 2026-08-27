@@ -20,6 +20,44 @@ test("product ERP codes remain strings and preserve leading zeros", () => {
   assert.equal(result.active, false);
 });
 
+test("reference_code preserves text and accepts 1 to 8 characters", () => {
+  for (const referenceCode of ["A", "01", "CPA/1", "01CR", "12345678"]) {
+    const result = erpItemSchemas.products.parse({
+      erp_id: `product-${referenceCode}`,
+      code: "FT-001",
+      description: "Fita",
+      group_code: "01",
+      type_code: "02",
+      product_code: "0045",
+      reference_code: referenceCode,
+      active: true,
+      source_updated_at: "2026-01-01T00:00:00Z",
+    });
+    assert.equal(result.reference_code, referenceCode);
+  }
+
+  assert.equal(erpItemSchemas.products.safeParse({
+    erp_id: "product-empty-reference",
+    code: "FT-001",
+    description: "Fita",
+    group_code: "01",
+    type_code: "02",
+    product_code: "0045",
+    reference_code: "",
+    source_updated_at: "2026-01-01T00:00:00Z",
+  }).success, false);
+  assert.equal(erpItemSchemas.products.safeParse({
+    erp_id: "product-long-reference",
+    code: "FT-001",
+    description: "Fita",
+    group_code: "01",
+    type_code: "02",
+    product_code: "0045",
+    reference_code: "123456789",
+    source_updated_at: "2026-01-01T00:00:00Z",
+  }).success, false);
+});
+
 test("batch limit is 500 and validation remains per item", () => {
   assert.equal(erpBatchSchema.safeParse({ items: Array(500).fill({}) }).success, true);
   assert.equal(erpBatchSchema.safeParse({ items: Array(501).fill({}) }).success, false);

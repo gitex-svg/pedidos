@@ -62,7 +62,7 @@ export const erpItemSchemas = {
     erp_id: code, code: z.string().trim().min(1).max(64), description: z.string().trim().min(1).max(10000),
     collection: z.string().trim().max(120).nullish(), packaging: z.string().trim().max(120).nullish(),
     width: z.string().trim().max(64).nullish(), color: z.string().trim().max(120).nullish(),
-    group_code: z.string().length(2), type_code: z.string().length(2), product_code: z.string().length(4), reference_code: z.string().length(8), ...base,
+    group_code: z.string().length(2), type_code: z.string().length(2), product_code: z.string().length(4), reference_code: z.string().min(1).max(8), ...base,
   }),
   "payment-terms": z.object({
     erp_code: code, description: z.string().trim().min(1).max(240),

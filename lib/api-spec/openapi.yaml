@@ -154,7 +154,7 @@ paths:
         - { name: group_code, in: query, schema: { type: string, minLength: 2, maxLength: 2 } }
         - { name: type_code, in: query, schema: { type: string, minLength: 2, maxLength: 2 } }
         - { name: product_code, in: query, schema: { type: string, minLength: 4, maxLength: 4 } }
-        - { name: reference_code, in: query, schema: { type: string, minLength: 8, maxLength: 8 } }
+        - { name: reference_code, in: query, schema: { type: string, minLength: 1, maxLength: 8 } }
         - { name: code, in: query, schema: { type: string } }
         - { name: description, in: query, schema: { type: string } }
         - { name: collection, in: query, schema: { type: string } }
@@ -863,7 +863,7 @@ components:
       required: [source_updated_at]
     RepresentativeSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_code: { type: string }, name: { type: string }, email: { type: [string, "null"], format: email } }, required: [erp_code, name] }] }
     CustomerSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_code: { type: string }, representative_erp_code: { type: string }, corporate_name: { type: string }, trade_name: { type: [string, "null"] }, cnpj_cpf: { type: [string, "null"] }, city: { type: [string, "null"] }, state: { type: [string, "null"] } }, required: [erp_code, representative_erp_code, corporate_name] }] }
-    ProductSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_id: { type: string }, code: { type: string }, description: { type: string }, collection: { type: [string, "null"] }, packaging: { type: [string, "null"] }, width: { type: [string, "null"] }, color: { type: [string, "null"] }, group_code: { type: string, minLength: 2, maxLength: 2 }, type_code: { type: string, minLength: 2, maxLength: 2 }, product_code: { type: string, minLength: 4, maxLength: 4 }, reference_code: { type: string, minLength: 8, maxLength: 8 } }, required: [erp_id, code, description, group_code, type_code, product_code, reference_code] }] }
+    ProductSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_id: { type: string }, code: { type: string }, description: { type: string }, collection: { type: [string, "null"] }, packaging: { type: [string, "null"] }, width: { type: [string, "null"] }, color: { type: [string, "null"] }, group_code: { type: string, minLength: 2, maxLength: 2 }, type_code: { type: string, minLength: 2, maxLength: 2 }, product_code: { type: string, minLength: 4, maxLength: 4 }, reference_code: { type: string, minLength: 1, maxLength: 8 } }, required: [erp_id, code, description, group_code, type_code, product_code, reference_code] }] }
     PaymentTermSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_code: { type: string }, description: { type: string }, installments: { type: [integer, "null"] } }, required: [erp_code, description] }] }
     CarrierSyncItem: { allOf: [{ $ref: "#/components/schemas/SyncBase" }, { type: object, properties: { erp_code: { type: string }, name: { type: string }, tax_id: { type: [string, "null"] } }, required: [erp_code, name] }] }
     PriceTableSyncItem:

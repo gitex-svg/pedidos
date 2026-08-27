@@ -201,6 +201,52 @@ test("products support identity filters, pagination, active visibility, stale pr
   assert.equal(raced.description, `${prefix} Concurrent newer`);
 });
 
+test("reference_code accepts 1 to 8 text characters in ERP sync and product filters", async () => {
+  const references = ["A", "01", "CPA/1", "01CR", "12345678"];
+  const items = references.map((referenceCode, index) => ({
+    erp_id: `${prefix}-REF-${index}`,
+    code: `${prefix}-ref-${index}`,
+    description: `${prefix} reference ${referenceCode}`,
+    group_code: "01",
+    type_code: "01",
+    product_code: String(index + 1).padStart(4, "0"),
+    reference_code: referenceCode,
+    source_updated_at: at(7),
+  }));
+
+  const validResponse = await erp("products", { items });
+  assert.equal(validResponse.status, 200);
+  const validJson = await validResponse.json() as any;
+  assert.deepEqual(validJson.results.map((result: any) => result.status), references.map(() => "created"));
+
+  const stored = await db.select({ referenceCode: products.referenceCode })
+    .from(products)
+    .where(like(products.erpId, `${prefix}-REF-%`));
+  assert.deepEqual(stored.map(product => product.referenceCode).sort(), [...references].sort());
+
+  const filtered = await fetch(`${base}/v1/products?reference_code=CPA%2F1`, { headers: auth(repCookie) });
+  assert.equal(filtered.status, 200);
+  const filteredJson = await filtered.json() as any;
+  assert.equal(filteredJson.items.length, 1);
+  assert.equal(filteredJson.items[0].reference_code, "CPA/1");
+
+  for (const [index, referenceCode] of ["", "123456789"].entries()) {
+    const response = await erp("products", {
+      items: [{
+        ...items[0],
+        erp_id: `${prefix}-REF-INVALID-${index}`,
+        code: `${prefix}-ref-invalid-${index}`,
+        reference_code: referenceCode,
+        source_updated_at: at(8 + index),
+      }],
+    });
+    assert.equal(response.status, 207);
+    const json = await response.json() as any;
+    assert.equal(json.results[0].status, "error");
+    assert.equal(json.results[0].reason, "VALIDATION_ERROR");
+  }
+});
+
 test("payment terms and carriers are idempotent and representatives see active records only", async () => {
   const terms = { items: [{ erp_code: `${prefix}-T`, description: "Term", active: true, source_updated_at: at(4) }, { erp_code: `${prefix}-TI`, description: "Inactive", active: false, source_updated_at: at(4) }] };
   const carrierBatch = { items: [{ erp_code: `${prefix}-C`, name: "Carrier", active: true, source_updated_at: at(4) }, { erp_code: `${prefix}-CI`, name: "Inactive carrier", active: false, source_updated_at: at(4) }] };

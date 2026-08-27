@@ -27,7 +27,7 @@ const querySchema = z.object({
   active: z.enum(["true", "false"]).transform(v => v === "true").optional(),
   sort: z.string().optional(), order: z.enum(["asc", "desc"]).default("asc"),
   group_code: z.string().max(2).optional(), type_code: z.string().max(2).optional(),
-  product_code: z.string().max(4).optional(), reference_code: z.string().max(8).optional(),
+  product_code: z.string().max(4).optional(), reference_code: z.string().min(1).max(8).optional(),
   code: z.string().max(64).optional(), description: z.string().max(200).optional(),
   collection: z.string().max(120).optional(), packaging: z.string().max(120).optional(),
   width: z.string().max(64).optional(), color: z.string().max(120).optional(),

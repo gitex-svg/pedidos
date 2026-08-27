@@ -710,7 +710,7 @@ export type ProductSyncItem = SyncBase & ({
      */
   product_code: string;
   /**
-     * @minLength 8
+     * @minLength 1
      * @maxLength 8
      */
   reference_code: string;
@@ -984,7 +984,7 @@ type_code?: string;
  */
 product_code?: string;
 /**
- * @minLength 8
+ * @minLength 1
  * @maxLength 8
  */
 reference_code?: string;

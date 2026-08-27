@@ -69,6 +69,11 @@ ponta.
 Os campos obrigatórios e formatos de cada item estão definidos no contrato
 OpenAPI em `lib/api-spec/openapi.yaml`.
 
+Para produtos, `reference_code` é texto com 1 a 8 caracteres. O valor é
+preservado como recebido pelo ERP, sem conversão numérica, padding ou
+truncamento. Exemplos válidos incluem `A`, `01CR`, `CPA/1` e `12345678`;
+`""` e valores com mais de 8 caracteres são inválidos.
+
 Cada resposta mantém contadores e `item_errors` e inclui um `results` em ordem,
 com um resultado por item. As razões estáveis são `STALE_SOURCE_VERSION`,
 `REPRESENTATIVE_NOT_FOUND`, `CUSTOMER_NOT_FOUND`, `PRODUCT_NOT_FOUND`,
