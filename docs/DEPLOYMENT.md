@@ -174,7 +174,8 @@ docker compose --env-file .env.production run --rm -T --no-deps \
 
 `REPRESENTATIVE_NAME` é opcional. Não registre esses valores no histórico ou nos
 logs e remova-os do ambiente após a execução. O comando recusa e-mails de ADMIN
-e não sobrescreve vínculos existentes de outro representante.
+e não sobrescreve vínculos existentes de outro representante. Ao redefinir uma
+senha, ele encerra as sessões existentes do representante.
 
 ## Rollback
 

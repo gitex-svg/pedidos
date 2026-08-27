@@ -1,7 +1,7 @@
 import { hashPassword } from "better-auth/crypto";
 import { randomUUID } from "node:crypto";
 import { and, eq, ne } from "drizzle-orm";
-import { accounts, db, pool, representatives, users } from "@workspace/db";
+import { accounts, db, pool, representatives, sessions, users } from "@workspace/db";
 
 const email = process.env.REPRESENTATIVE_EMAIL?.trim().toLowerCase();
 const password = process.env.REPRESENTATIVE_PASSWORD;
@@ -113,6 +113,8 @@ async function run(representativeEmail: string, representativePassword: string, 
       .update(representatives)
       .set({ userId, updatedAt: new Date() })
       .where(eq(representatives.id, representative[0].id));
+
+    await tx.delete(sessions).where(eq(sessions.userId, userId));
   });
 
   process.stdout.write("Representante criado ou atualizado com sucesso.\n");

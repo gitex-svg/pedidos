@@ -188,7 +188,8 @@ docker compose --env-file .env.production run --rm -T --no-deps \
 
 `REPRESENTATIVE_NAME` é opcional. O comando exige um representante ERP existente,
 recusa e-mails de ADMIN e não substitui o vínculo de outro usuário. Remova os
-valores do ambiente após a execução e não os registre no histórico.
+valores do ambiente após a execução e não os registre no histórico. Ao redefinir
+a senha, as sessões existentes do representante são encerradas.
 
 ## Atualização e rollback
 

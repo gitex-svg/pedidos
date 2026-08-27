@@ -144,7 +144,8 @@ pnpm run create-representative
 
 `REPRESENTATIVE_NAME` é opcional. O comando cria ou reativa o usuário,
 redefine a credencial e vincula o usuário ao código ERP informado. Ele não
-converte usuários ADMIN nem substitui o vínculo de outro representante.
+converte usuários ADMIN nem substitui o vínculo de outro representante. Ao
+redefinir a senha, as sessões existentes desse representante são encerradas.
 
 ## Produção
 
