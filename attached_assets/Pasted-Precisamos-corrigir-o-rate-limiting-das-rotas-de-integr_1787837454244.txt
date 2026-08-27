@@ -1,0 +1,130 @@
+Precisamos corrigir o rate limiting das rotas de integração ERP.
+
+PROBLEMA ATUAL
+
+Ao executar a sincronização de preços pelo integrador C#, a API retorna:
+
+HTTP 429 Too Many Requests
+
+{
+  "error": "Muitas requisições. Tente novamente mais tarde."
+}
+
+As rotas de integração ERP são chamadas por um serviço interno autenticado através de ERP_API_KEY e podem realizar sincronizações em lote de milhares de registros.
+
+O rate limit geral destinado aos usuários/web não deve bloquear uma sincronização legítima do ERP.
+
+OBJETIVO
+
+Criar uma política de rate limit específica para as rotas:
+
+/api/v1/erp/*
+
+autenticadas corretamente através de ERP_API_KEY.
+
+IMPORTANTE:
+Não desabilitar o rate limiting global do sistema.
+Não alterar o rate limit das rotas públicas ou das rotas utilizadas pelos usuários do sistema.
+
+REGRAS
+
+1. Identificar onde o rate limiting global está configurado.
+
+2. Identificar se atualmente as rotas /api/v1/erp/* estão usando o mesmo limite das requisições normais.
+
+3. Criar uma política específica para integração ERP.
+
+4. Uma requisição com ERP_API_KEY válida deve utilizar o rate limit de integração, e não o rate limit normal do site.
+
+5. ERP_API_KEY inválida deve continuar retornando 401.
+
+6. Não confiar somente no caminho /erp para liberar requisições.
+A política diferenciada somente deve ser aplicada depois que a credencial ERP for validada.
+
+7. Configurar um limite suficientemente alto para permitir sincronizações grandes.
+
+Sugestão:
+
+ERP_RATE_LIMIT_MAX=5000
+ERP_RATE_LIMIT_WINDOW_MS=60000
+
+Ou seja, até 5.000 requisições por minuto para uma integração ERP autenticada.
+
+Preferencialmente tornar esses valores configuráveis por variáveis de ambiente.
+
+8. Se a aplicação já utiliza processamento em lote, preservar essa arquitetura.
+
+Não transformar uma sincronização batch em milhares de requisições individuais.
+
+9. Verificar especificamente os endpoints de:
+
+- representantes
+- clientes
+- produtos
+- condições de pagamento
+- transportadoras
+- preços
+- preços especiais
+
+Todos os endpoints ERP autenticados devem utilizar a mesma política apropriada.
+
+10. Manter proteção contra abuso.
+
+Rotas normais continuam com o rate limit atual.
+
+Rotas ERP:
+- exigem ERP_API_KEY válida;
+- possuem rate limit próprio;
+- continuam retornando 429 se excederem o limite específico da integração.
+
+11. Adicionar headers adequados quando houver rate limit, se a biblioteca utilizada suportar:
+
+Retry-After
+RateLimit-Limit
+RateLimit-Remaining
+RateLimit-Reset
+
+12. TESTES
+
+Criar testes garantindo:
+
+- requisição normal continua sujeita ao rate limit normal;
+- ERP_API_KEY inválida retorna 401;
+- ERP_API_KEY válida usa o limite específico ERP;
+- várias chamadas legítimas de sincronização ERP não retornam 429 prematuramente;
+- exceder deliberadamente o ERP_RATE_LIMIT_MAX continua retornando 429;
+- nenhuma proteção das rotas públicas foi removida.
+
+13. Verificar também a sincronização de preços.
+
+Ela deve conseguir processar todos os lotes necessários sem receber 429 dentro de uma execução normal.
+
+14. Não alterar:
+- regras de preços;
+- estrutura das tabelas;
+- autenticação de usuários;
+- regras de produtos;
+- clientes;
+- representantes;
+- pedidos;
+- PostgreSQL;
+- formato dos DTOs;
+- contratos de sincronização, exceto se necessário para headers de rate limit.
+
+15. Ao finalizar:
+
+Executar:
+- testes;
+- typecheck;
+- build;
+- testes das rotas ERP.
+
+Informar:
+- arquivos alterados;
+- qual era o rate limit anterior;
+- qual ficou sendo o rate limit ERP;
+- como as rotas ERP são diferenciadas;
+- quais variáveis de ambiente novas foram criadas;
+- confirmação de que as rotas normais continuam protegidas.
+
+Não implementar nenhuma outra funcionalidade.
