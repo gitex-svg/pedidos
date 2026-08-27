@@ -60,6 +60,7 @@ services:
       - "127.0.0.1:${APP_BIND_PORT:-8080}:8080"
     networks:
       - backend
+      - frontend
     depends_on:
       postgres:
         condition: service_healthy
@@ -146,6 +147,7 @@ networks:
   backend:
     driver: bridge
     internal: true
+  frontend:
 
 volumes:
   postgres_data:
