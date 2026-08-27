@@ -1,0 +1,252 @@
+# CORREÇÃO — Dashboard não atualiza após criação/finalização de pedidos
+
+Existe um problema de atualização no dashboard do sistema Pedidos Fitas Gitex.
+
+## Cenário reproduzido
+
+1. Entrei como representante.
+2. Criei um orçamento.
+3. Finalizei um orçamento, transformando-o em pedido com status `SUBMITTED` / Enviado.
+4. Criei outro orçamento que permaneceu como `DRAFT` / Rascunho.
+5. Na tela `/orders`, os registros aparecem corretamente:
+   - 1 Rascunho
+   - 1 Enviado
+6. Ao voltar para `/dashboard`, todos os indicadores continuam zerados.
+
+Portanto, os dados estão persistidos corretamente, mas o dashboard não está atualizando suas queries/estatísticas.
+
+## Objetivo
+
+Corrigir o dashboard para sempre refletir os dados atuais da carteira do representante.
+
+Não alterar regras comerciais, banco ou status.
+
+## Investigar
+
+Localizar:
+
+- página `/dashboard`;
+- hooks React Query usados pelo dashboard;
+- query keys de orders/dashboard/statistics;
+- mutações de criação de orçamento;
+- mutações de atualização;
+- finalização/submissão de pedido;
+- navegação de volta ao dashboard.
+
+Identificar se o dashboard:
+- está usando `staleTime` muito alto;
+- está usando `initialData` fixo;
+- não invalida a query após mutações;
+- não refaz a consulta ao montar;
+- calcula estatísticas com dados em cache;
+- usa uma query diferente da listagem de `/orders` e essa query não é invalidada.
+
+## Comportamento esperado
+
+Considerando:
+
+- Pedido #1 = SUBMITTED / Enviado
+- Pedido #2 = DRAFT / Rascunho
+
+o dashboard deve mostrar:
+
+Carteira Total = 2
+
+Rascunhos = 1
+
+Enviados = 1
+
+Aprovados = 0
+
+Faturados = 0
+
+Rejeitados = 0
+
+O dashboard deve refletir também futuras mudanças de status ERP.
+
+## Correção React Query
+
+Após qualquer mutação relevante de pedido, invalidar todas as queries relacionadas.
+
+Exemplo conceitual:
+
+queryClient.invalidateQueries({
+  queryKey: ["orders"]
+});
+
+queryClient.invalidateQueries({
+  queryKey: ["dashboard"]
+});
+
+queryClient.invalidateQueries({
+  queryKey: ["order-stats"]
+});
+
+Usar as query keys reais existentes no projeto.
+
+Não criar keys duplicadas se já houver constantes compartilhadas.
+
+## Finalização de pedido
+
+Depois de:
+
+Finalizar Pedido
+
+e o backend retornar sucesso:
+
+1. atualizar/invalidate o detalhe do pedido;
+2. invalidar a listagem de pedidos;
+3. invalidar as estatísticas/dashboard;
+4. somente então navegar ou atualizar a interface.
+
+## Criação de orçamento
+
+Depois da criação de um DRAFT:
+
+- invalidar listagem de orders;
+- invalidar dashboard/statistics.
+
+## Edição/exclusão
+
+Se exclusão de rascunho existir, também deve invalidar os indicadores.
+
+## Atualizações ERP
+
+Quando o pedido mudar para:
+
+EM_ANALISE
+APROVADO
+FECHADO
+FATURADO
+REPROVADO
+
+o dashboard deve refletir o novo status após novo fetch.
+
+## Reentrada no Dashboard
+
+Mesmo que nenhuma mutação tenha ocorrido na tela atual, ao acessar `/dashboard` novamente, a query deve poder refazer o fetch.
+
+Configurar de forma apropriada, por exemplo:
+
+refetchOnMount: true
+
+e/ou:
+
+refetchOnWindowFocus: true
+
+quando adequado.
+
+Não usar cache infinito para estatísticas operacionais.
+
+Preferencialmente usar um `staleTime` curto para dashboard, por exemplo entre 0 e 30 segundos.
+
+## Fonte dos dados
+
+Verificar se o dashboard possui endpoint próprio de estatísticas.
+
+Se existir, corrigir seu cache/invalidação.
+
+Se o dashboard estiver calculando contagens a partir da listagem de pedidos, garantir que:
+- paginação não prejudique a contagem;
+- sejam usados totais reais do servidor;
+- não sejam consideradas somente as linhas da página atual.
+
+Se necessário, criar ou usar endpoint agregado no backend para retornar algo como:
+
+{
+  "total": 2,
+  "draft": 1,
+  "submitted": 1,
+  "approved": 0,
+  "invoiced": 0,
+  "rejected": 0
+}
+
+Mas não criar endpoint novo se já existir mecanismo equivalente.
+
+## Regra de status
+
+Manter o mapeamento atual do projeto.
+
+Validar pelo menos:
+
+internal_status = DRAFT
+→ Rascunhos
+
+internal_status = SUBMITTED
+→ Enviados, enquanto não houver estado comercial posterior que deva ser exibido em outra categoria
+
+erp_status = APROVADO
+→ Aprovados
+
+erp_status = FATURADO
+→ Faturados
+
+erp_status = REPROVADO
+→ Rejeitados
+
+Não alterar a modelagem de status existente sem necessidade.
+
+## Testes obrigatórios
+
+Adicionar teste cobrindo:
+
+1. dashboard inicial vazio;
+2. criar DRAFT;
+3. dashboard passa para:
+   total 1
+   rascunhos 1
+
+4. finalizar o DRAFT;
+5. dashboard passa para:
+   total 1
+   rascunhos 0
+   enviados 1
+
+6. criar novo DRAFT;
+7. dashboard:
+   total 2
+   rascunhos 1
+   enviados 1
+
+8. atualizar pedido para APROVADO;
+9. dashboard deve refletir a categoria correta.
+
+Testar também navegação:
+
+/orders
+→ /dashboard
+
+sem precisar dar F5 manualmente.
+
+## Validação visual
+
+Testar desktop e mobile.
+
+Confirmar que os números mudam imediatamente após a atualização dos dados.
+
+## Não alterar
+
+Não modificar:
+- regras de preços;
+- sincronização ERP;
+- descontos;
+- cálculos financeiros;
+- autenticação;
+- tabelas de preço;
+- integração C#;
+- banco sem necessidade;
+- permissões dos representantes.
+
+## Relatório final
+
+Ao concluir informar:
+
+1. causa raiz encontrada;
+2. quais query keys estavam envolvidas;
+3. onde foi adicionada invalidação/refetch;
+4. arquivos alterados;
+5. resultado dos testes;
+6. confirmação de que `/orders` e `/dashboard` ficam sincronizados sem F5.
+
+Não implementar nenhuma outra funcionalidade.
