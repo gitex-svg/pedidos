@@ -12,6 +12,8 @@ export interface AppConfig {
   trustProxyHops: number;
   staticDir: string;
   readinessTimeoutMs: number;
+  erpRateLimitMax: number;
+  erpRateLimitWindowMs: number;
   production: boolean;
 }
 
@@ -47,6 +49,8 @@ export function loadConfig(
   const trustProxyHops = nonNegativeInteger(env, "TRUST_PROXY_HOPS", 0, 10);
   const staticDir = env.STATIC_DIR?.trim() || "public";
   const readinessTimeoutMs = positiveInteger(env, "READINESS_TIMEOUT_MS", 2_000, 100, 10_000);
+  const erpRateLimitMax = positiveInteger(env, "ERP_RATE_LIMIT_MAX", 5_000, 1, 100_000);
+  const erpRateLimitWindowMs = positiveInteger(env, "ERP_RATE_LIMIT_WINDOW_MS", 60_000, 1_000, 3_600_000);
   const logLevel = env.LOG_LEVEL ?? "info";
   if (!logLevels.has(logLevel)) throw new Error("Invalid configuration: LOG_LEVEL");
   const trustedOrigins = [
@@ -55,7 +59,7 @@ export function loadConfig(
   ];
   return {
     databaseUrl, sessionSecret, betterAuthUrl, erpApiKey, trustedOrigins, logLevel,
-    port, host, trustProxyHops, staticDir, readinessTimeoutMs, production,
+    port, host, trustProxyHops, staticDir, readinessTimeoutMs, erpRateLimitMax, erpRateLimitWindowMs, production,
   };
 }
 

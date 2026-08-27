@@ -6,12 +6,15 @@ import {
 } from "@workspace/db";
 import { eq, or, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
+import { loadConfig } from "../lib/config";
 import { requireErpApiKey } from "../middlewares/erp-api-key";
-import { limitErp } from "../middlewares/rate-limit";
+import { BoundedRateLimiter, limitErp } from "../middlewares/rate-limit";
 import { ErpOrderError, erpOrderService } from "../services/erp-integration-service";
 
 const router: IRouter = Router();
-router.use("/v1/erp", limitErp);
+const config = loadConfig(process.env, { requirePort: false });
+const erpLimiter = new BoundedRateLimiter(config.erpRateLimitMax, config.erpRateLimitWindowMs);
+router.use("/v1/erp", requireErpApiKey, limitErp(erpLimiter));
 const code = z.string().trim().min(1).max(128);
 const sourceUpdatedAt = z.coerce.date();
 const base = { active: z.boolean().default(true), source_updated_at: sourceUpdatedAt };
@@ -258,13 +261,13 @@ async function orderFailure(res: any, error: unknown, operation: ReturnType<type
   res.status(status).json({ error: error.message, code: error.code, correlation_id: operation.correlationId });
 }
 
-router.get("/v1/erp/orders/submitted", requireErpApiKey, async (req, res) => {
+router.get("/v1/erp/orders/submitted", async (req, res) => {
   const parsed = submittedQuerySchema.safeParse(req.query);
   if (!parsed.success) return res.status(400).json({ error: "Parâmetros inválidos.", details: z.treeifyError(parsed.error) });
   return res.json(await erpOrderService.listSubmitted(parsed.data));
 });
 
-router.get("/v1/erp/orders/:id", requireErpApiKey, async (req, res) => {
+router.get("/v1/erp/orders/:id", async (req, res) => {
   const id = orderIdSchema.safeParse(req.params.id);
   if (!id.success) return res.status(400).json({ error: "Identificador inválido." });
   try {
@@ -275,7 +278,7 @@ router.get("/v1/erp/orders/:id", requireErpApiKey, async (req, res) => {
   }
 });
 
-router.post("/v1/erp/orders/:id/confirm", requireErpApiKey, async (req, res) => {
+router.post("/v1/erp/orders/:id/confirm", async (req, res) => {
   const id = orderIdSchema.safeParse(req.params.id);
   const body = confirmSchema.safeParse(req.body);
   if (!id.success || !body.success) return res.status(400).json({ error: "Dados inválidos." });
@@ -292,7 +295,7 @@ router.post("/v1/erp/orders/:id/confirm", requireErpApiKey, async (req, res) => 
   }
 });
 
-router.patch("/v1/erp/orders/:id/status", requireErpApiKey, async (req, res) => {
+router.patch("/v1/erp/orders/:id/status", async (req, res) => {
   const id = orderIdSchema.safeParse(req.params.id);
   const body = statusSchema.safeParse(req.body);
   if (!id.success || !body.success) return res.status(400).json({ error: "Dados inválidos." });
@@ -308,7 +311,7 @@ router.patch("/v1/erp/orders/:id/status", requireErpApiKey, async (req, res) => 
 });
 
 for (const entity of Object.keys(erpItemSchemas) as (keyof typeof erpItemSchemas)[]) {
-  router.post(`/v1/erp/${entity}/sync`, requireErpApiKey, async (req, res) => {
+  router.post(`/v1/erp/${entity}/sync`, async (req, res) => {
     const batch = erpBatchSchema.safeParse(req.body);
     if (!batch.success) return res.status(400).json({ error: "Lote inválido.", details: z.treeifyError(batch.error) });
     const correlationId = batch.data.correlation_id ?? randomUUID();

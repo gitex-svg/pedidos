@@ -26,8 +26,19 @@ test("runtime networking settings are bounded and default safely", () => {
   const config = loadConfig(valid, { requirePort: false });
   assert.equal(config.host, "0.0.0.0");
   assert.equal(config.trustProxyHops, 0);
+  assert.equal(config.erpRateLimitMax, 5_000);
+  assert.equal(config.erpRateLimitWindowMs, 60_000);
   assert.throws(() => loadConfig({ ...valid, TRUST_PROXY_HOPS: "11" }, { requirePort: false }), /TRUST_PROXY_HOPS/);
   assert.equal(loadConfig({ ...valid, TRUST_PROXY_HOPS: "1" }, { requirePort: false }).trustProxyHops, 1);
+  const customRateLimit = loadConfig({
+    ...valid,
+    ERP_RATE_LIMIT_MAX: "250",
+    ERP_RATE_LIMIT_WINDOW_MS: "120000",
+  }, { requirePort: false });
+  assert.equal(customRateLimit.erpRateLimitMax, 250);
+  assert.equal(customRateLimit.erpRateLimitWindowMs, 120_000);
+  assert.throws(() => loadConfig({ ...valid, ERP_RATE_LIMIT_MAX: "0" }, { requirePort: false }), /ERP_RATE_LIMIT_MAX/);
+  assert.throws(() => loadConfig({ ...valid, ERP_RATE_LIMIT_WINDOW_MS: "999" }, { requirePort: false }), /ERP_RATE_LIMIT_WINDOW_MS/);
 });
 
 test("documented database pool environment names are applied", () => {

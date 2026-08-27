@@ -6,6 +6,7 @@ import { hashPassword } from "better-auth/crypto";
 import { and, eq, inArray, like } from "drizzle-orm";
 import { accounts, carriers, customers, db, integrationLogs, paymentTerms, products, representatives, users } from "@workspace/db";
 import app from "../app";
+import { loadConfig } from "../lib/config";
 
 const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 const prefix = `f2-${stamp}`;
@@ -51,7 +52,25 @@ after(async () => {
 test("ERP key rejects missing and invalid credentials", async () => {
   const missing = await fetch(`${base}/v1/erp/representatives/sync`, { method: "POST", headers: { "content-type": "application/json" }, body: '{"items":[]}' });
   assert.equal(missing.status, 401);
-  assert.equal((await erp("representatives", { items: [] }, "invalid")).status, 401);
+  const invalid = await erp("representatives", { items: [] }, "invalid");
+  assert.equal(invalid.status, 401);
+  assert.equal(invalid.headers.get("RateLimit-Limit"), null);
+});
+
+test("authenticated ERP syncs use the separate high-capacity limit, including prices", async () => {
+  const rateConfig = loadConfig(process.env, { requirePort: false });
+  const representativeCalls = Math.max(0, Math.min(125, rateConfig.erpRateLimitMax - 1));
+  for (let attempt = 0; attempt < representativeCalls; attempt++) {
+    const response = await erp("representatives", { items: [] });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("RateLimit-Limit"), String(rateConfig.erpRateLimitMax));
+    assert.ok(Number(response.headers.get("RateLimit-Remaining")) >= 0);
+    assert.ok(Number(response.headers.get("RateLimit-Reset")) > 0);
+  }
+
+  const prices = await erp("price-tables", { items: [] });
+  assert.equal(prices.status, 200);
+  assert.equal(prices.headers.get("RateLimit-Limit"), "5000");
 });
 
 test("preserves supplied correlation and generates/stores one when absent", async () => {

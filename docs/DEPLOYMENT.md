@@ -29,6 +29,8 @@ repositório, frontend, payload de cliente ou log:
 | `SESSION_SECRET` | obrigatória, mínimo de 32 caracteres; valor diferente em cada ambiente |
 | `BETTER_AUTH_URL` | origem pública exata; obrigatória quando `NODE_ENV=production` |
 | `ERP_API_KEY` | Bearer token exclusivo do servidor para as rotas `/api/v1/erp/...`; não expor |
+| `ERP_RATE_LIMIT_MAX` | máximo de requisições ERP autenticadas por janela; padrão `5000`, entre 1 e 100000 |
+| `ERP_RATE_LIMIT_WINDOW_MS` | duração da janela ERP em milissegundos; padrão `60000`, entre 1000 e 3600000 |
 | `PORT` | exigida pelo processo da API |
 | `NODE_ENV` | use `production` somente no deployment produtivo |
 | `LOG_LEVEL` | nível do Pino; padrão atual `info` |

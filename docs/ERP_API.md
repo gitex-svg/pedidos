@@ -17,6 +17,18 @@ Content-Type: application/json
 servidor. Não inclua a chave em código versionado, payloads de cliente,
 capturas de tela ou logs. Uma chave ausente ou inválida recebe `401`.
 
+## Rate limit da integração
+
+Depois de validar a `ERP_API_KEY`, todas as rotas `/api/v1/erp/*` compartilham
+um limite próprio, independente das políticas de login e das rotas web. O
+padrão é de 5.000 requisições a cada 60 segundos, configurável por
+`ERP_RATE_LIMIT_MAX` e `ERP_RATE_LIMIT_WINDOW_MS`.
+
+O caminho da URL não é uma exceção de segurança: uma credencial ausente ou
+inválida recebe `401` antes de participar desse contador. Ao exceder o limite
+ERP, a resposta é `429` e inclui `Retry-After`, `RateLimit-Limit`,
+`RateLimit-Remaining` e `RateLimit-Reset`.
+
 ## Endpoints
 
 | Cadastro | Endpoint |
