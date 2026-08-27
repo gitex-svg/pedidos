@@ -1,0 +1,355 @@
+# ALTERAÇÃO PONTUAL — reference_code de 1 a 8 caracteres
+
+Preciso ajustar o contrato e a implementação do campo `reference_code` dos produtos.
+
+## Contexto
+
+Hoje o sistema exige que:
+
+reference_code
+
+tenha exatamente 8 caracteres.
+
+Isso está incorreto para o ERP real.
+
+No ERP, `reference_code` vem de:
+
+tipo.REFERENCIA
+
+e pode ter de 1 até 8 caracteres.
+
+Exemplos válidos:
+
+CPA/1
+01CR
+12345678
+A
+AB12
+
+IMPORTANTE:
+
+- O campo deve continuar sendo tratado como TEXTO.
+- Nunca converter para número.
+- Preservar exatamente o valor vindo do ERP.
+- Não completar com zeros.
+- Não completar com espaços.
+- Não truncar valores válidos.
+- O limite máximo continua sendo 8 caracteres.
+- O mínimo deve passar a ser 1 caractere.
+
+--------------------------------------------------
+1. ALTERAR O OPENAPI
+--------------------------------------------------
+
+Localizar todos os schemas e parâmetros relacionados a:
+
+reference_code
+
+Hoje provavelmente estão definidos como:
+
+minLength: 8
+maxLength: 8
+
+Alterar para:
+
+minLength: 1
+maxLength: 8
+
+Isso deve ser feito tanto no schema de sincronização quanto nos parâmetros de consulta.
+
+Exemplo esperado:
+
+reference_code:
+  type: string
+  minLength: 1
+  maxLength: 8
+
+--------------------------------------------------
+2. ALTERAR VALIDADORES ZOD
+--------------------------------------------------
+
+Localizar todos os schemas Zod relacionados a:
+
+reference_code
+
+Trocar validações equivalentes a:
+
+z.string().length(8)
+
+ou:
+
+z.string().min(8).max(8)
+
+por:
+
+z.string().min(1).max(8)
+
+Garantir que a alteração seja aplicada em:
+
+- sincronização ERP de produtos;
+- filtros de consulta de produtos;
+- schemas compartilhados;
+- schemas gerados, se aplicável.
+
+--------------------------------------------------
+3. BACKEND
+--------------------------------------------------
+
+Garantir que o backend aceite:
+
+reference_code
+
+com comprimento entre 1 e 8 caracteres.
+
+Não adicionar padding.
+
+Não aplicar padStart.
+
+Não aplicar padEnd.
+
+Não converter para número.
+
+Preservar o valor exatamente como recebido, exceto Trim() se essa já for a política atual dos códigos ERP.
+
+Valores válidos:
+
+"CPA/1"
+"01CR"
+"A"
+"12345678"
+
+Valores inválidos:
+
+""
+"123456789"
+
+--------------------------------------------------
+4. BANCO DE DADOS
+--------------------------------------------------
+
+Verificar o tipo atual da coluna:
+
+products.reference_code
+
+Se for:
+
+VARCHAR(8)
+
+ou equivalente que aceite strings menores que 8 caracteres:
+
+NÃO criar migration.
+
+Somente criar migration se atualmente existir alguma constraint que obrigue exatamente 8 caracteres.
+
+Não aumentar o tamanho máximo acima de 8.
+
+--------------------------------------------------
+5. ENDPOINT ERP
+--------------------------------------------------
+
+Validar especificamente:
+
+POST /api/v1/erp/products/sync
+
+Este payload deve passar:
+
+{
+  "erp_id": "01-01-0001-CPA/1",
+  "code": "...",
+  "description": "...",
+  "group_code": "01",
+  "type_code": "01",
+  "product_code": "0001",
+  "reference_code": "CPA/1",
+  "active": true,
+  "source_updated_at": "2026-08-27T12:00:00Z"
+}
+
+Não deve retornar:
+
+VALIDATION_ERROR
+
+apenas porque `reference_code` possui menos de 8 caracteres.
+
+--------------------------------------------------
+6. CONSULTA DE PRODUTOS
+--------------------------------------------------
+
+No endpoint:
+
+GET /api/v1/products
+
+o filtro:
+
+reference_code
+
+também deve aceitar de 1 a 8 caracteres.
+
+Exemplos válidos:
+
+GET /api/v1/products?reference_code=CPA/1
+
+GET /api/v1/products?reference_code=01CR
+
+Não exigir 8 caracteres.
+
+--------------------------------------------------
+7. FRONTEND
+--------------------------------------------------
+
+Verificar se existe validação ou input relacionado a:
+
+reference_code
+
+Se existir:
+
+- permitir entre 1 e 8 caracteres;
+- não aplicar máscara de 8 posições;
+- não completar com zeros;
+- não modificar o valor retornado pela API.
+
+Como o campo é de consulta e integração ERP, manter apresentação textual.
+
+--------------------------------------------------
+8. CLIENTES GERADOS / CODEGEN
+--------------------------------------------------
+
+Após atualizar o OpenAPI:
+
+- regenerar cliente React;
+- regenerar tipos TypeScript;
+- regenerar schemas Zod;
+- corrigir qualquer incompatibilidade gerada.
+
+Não editar manualmente arquivos gerados quando existir comando oficial de codegen.
+
+--------------------------------------------------
+9. TESTES OBRIGATÓRIOS
+--------------------------------------------------
+
+Adicionar testes para:
+
+reference_code = "A"
+→ válido
+
+reference_code = "01"
+→ válido
+
+reference_code = "CPA/1"
+→ válido
+
+reference_code = "01CR"
+→ válido
+
+reference_code = "12345678"
+→ válido
+
+reference_code = ""
+→ inválido
+
+reference_code = "123456789"
+→ inválido
+
+Também testar sincronização ERP real com:
+
+group_code = "01"
+type_code = "01"
+product_code = "0001"
+reference_code = "CPA/1"
+
+O resultado deve ser:
+
+created
+updated
+ou ignored
+
+mas nunca:
+
+VALIDATION_ERROR
+
+por tamanho da referência.
+
+--------------------------------------------------
+10. REGRESSÃO
+--------------------------------------------------
+
+Não alterar as regras dos demais códigos.
+
+Devem permanecer:
+
+group_code
+→ exatamente 2 caracteres
+
+type_code
+→ exatamente 2 caracteres
+
+product_code
+→ exatamente 4 caracteres
+
+reference_code
+→ de 1 até 8 caracteres
+
+Portanto:
+
+group_code:
+minLength 2
+maxLength 2
+
+type_code:
+minLength 2
+maxLength 2
+
+product_code:
+minLength 4
+maxLength 4
+
+reference_code:
+minLength 1
+maxLength 8
+
+--------------------------------------------------
+11. NÃO ALTERAR
+--------------------------------------------------
+
+Não alterar:
+
+- hierarquia de preços;
+- autenticação ERP;
+- sincronização de clientes;
+- sincronização de representantes;
+- pedidos;
+- descontos;
+- regras financeiras;
+- status ERP;
+- migrations sem necessidade;
+- lógica de price tables;
+- identificação `erp_id`.
+
+Esta tarefa deve ser estritamente limitada à flexibilização de tamanho de `reference_code`.
+
+--------------------------------------------------
+12. VALIDAÇÃO FINAL
+--------------------------------------------------
+
+Ao concluir executar:
+
+- typecheck;
+- testes automatizados;
+- build da API;
+- build do frontend;
+- OpenAPI validation;
+- codegen;
+- testes HTTP do endpoint ERP;
+- teste do filtro GET /api/v1/products.
+
+Depois apresentar relatório contendo:
+
+1. arquivos alterados;
+2. motivo de cada alteração;
+3. confirmação de que `reference_code` aceita 1 a 8 caracteres;
+4. confirmação de que nenhum outro código teve sua regra alterada;
+5. resultado dos testes;
+6. confirmação se houve ou não migration;
+7. exemplo real usando `CPA/1`.
+
+Não iniciar nenhuma outra funcionalidade.
